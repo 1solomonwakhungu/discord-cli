@@ -2,10 +2,11 @@
 
 **discord-cli** is a command-line interface for managing Discord servers and automating Discord operations via AI agents. It provides 50+ commands for channel management, role administration, member moderation, message operations, and more — all from the terminal with JSON output for programmatic consumption.
 
-[![PyPI version](https://badge.fury.io/py/discordcli-agents.svg)](https://pypi.org/project/discordcli-agents/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://img.shields.io/pypi/v/discordcli-agents.svg)](https://pypi.org/project/discordcli-agents/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/discordcli-agents.svg)](https://pypi.org/project/discordcli-agents/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/container.yaml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
 
 ---
 

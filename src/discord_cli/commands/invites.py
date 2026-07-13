@@ -2,83 +2,100 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import click
+import discord
 
-from ..client import run_bot
-from ..output import output
+from discord_cli.errors import CliError
+from discord_cli.models import get_channel, get_guild
+from discord_cli.registry import invoke, registry
 
 
-@click.group()
-def invites() -> None:
+@registry.group("invites")
+def invites_group() -> None:
     """Manage server invites."""
 
 
-@invites.command("list")
+@invites_group.command("list")
 @click.pass_context
-def list_invites(ctx: click.Context) -> None:
+def invite_list(ctx: click.Context) -> None:
     """List all invites."""
-
-    async def _action(client, **kwargs):
-        guild = client.guilds[0]
-        invites = await guild.invites()
-        return [
-            {
-                "code": inv.code,
-                "url": str(inv.url),
-                "channel_id": inv.channel.id if inv.channel else None,
-                "inviter_id": inv.inviter.id if inv.inviter else None,
-                "max_uses": inv.max_uses,
-                "uses": inv.uses,
-                "max_age": inv.max_age,
-                "temporary": inv.temporary,
-                "created_at": inv.created_at.isoformat() if inv.created_at else None,
-            }
-            for inv in invites
-        ]
-
-    result, error = run_bot(_action, ctx=ctx)
-    output(result, error, ctx)
+    invoke(ctx, action_invite_list)
 
 
-@invites.command("create")
-@click.option("--channel-id", required=True, help="Channel to create invite for")
+@invites_group.command("create")
+@click.option("--channel-id", type=int, required=True, help="Channel to create invite for")
 @click.option("--max-age", type=int, default=0, help="Max age in seconds (0=never)")
 @click.option("--max-uses", type=int, default=0, help="Max uses (0=unlimited)")
 @click.option("--temporary", is_flag=True, help="Temporary membership")
 @click.pass_context
-def create_invite(
+def invite_create(
     ctx: click.Context, channel_id: int, max_age: int, max_uses: int, temporary: bool
 ) -> None:
     """Create an invite."""
-
-    async def _action(client, **kwargs):
-        guild = client.guilds[0]
-        channel = guild.get_channel(channel_id)
-        if not channel:
-            raise ValueError(f"Channel {channel_id} not found")
-        invite = await channel.create_invite(
-            max_age=max_age, max_uses=max_uses, temporary=temporary
-        )
-        return {"code": invite.code, "url": str(invite.url)}
-
-    result, error = run_bot(_action, ctx=ctx)
-    output(result, error, ctx)
+    invoke(
+        ctx,
+        action_invite_create,
+        channel_id=channel_id,
+        max_age=max_age,
+        max_uses=max_uses,
+        temporary=temporary,
+    )
 
 
-@invites.command("delete")
+@invites_group.command("delete")
 @click.argument("code")
 @click.pass_context
-def delete_invite(ctx: click.Context, code: str) -> None:
+def invite_delete(ctx: click.Context, code: str) -> None:
     """Delete an invite by code."""
+    invoke(ctx, action_invite_delete, code=code)
 
-    async def _action(client, **kwargs):
-        guild = client.guilds[0]
-        invites = await guild.invites()
-        for inv in invites:
-            if inv.code == code:
-                await inv.delete()
-                return {"deleted": code}
-        raise ValueError(f"Invite {code} not found")
 
-    result, error = run_bot(_action, ctx=ctx)
-    output(result, error, ctx)
+async def action_invite_list(
+    client: discord.Client, guild_id: int | None, **_: Any
+) -> list[dict[str, Any]]:
+    guild = await get_guild(client, guild_id)
+    invites = await guild.invites()
+    return [
+        {
+            "code": invite.code,
+            "url": str(invite.url),
+            "channel_id": invite.channel.id if invite.channel else None,
+            "inviter_id": invite.inviter.id if invite.inviter else None,
+            "max_uses": invite.max_uses,
+            "uses": invite.uses,
+            "max_age": invite.max_age,
+            "temporary": invite.temporary,
+            "created_at": invite.created_at.isoformat() if invite.created_at else None,
+        }
+        for invite in invites
+    ]
+
+
+async def action_invite_create(
+    client: discord.Client,
+    guild_id: int | None,
+    channel_id: int,
+    max_age: int,
+    max_uses: int,
+    temporary: bool,
+    **_: Any,
+) -> dict[str, str]:
+    guild = await get_guild(client, guild_id)
+    channel = get_channel(guild, channel_id)
+    if not hasattr(channel, "create_invite"):
+        raise CliError(f"Channel {channel_id} does not support invites")
+    invite = await channel.create_invite(max_age=max_age, max_uses=max_uses, temporary=temporary)
+    return {"code": invite.code, "url": str(invite.url)}
+
+
+async def action_invite_delete(
+    client: discord.Client, guild_id: int | None, code: str, **_: Any
+) -> dict[str, str]:
+    guild = await get_guild(client, guild_id)
+    for invite in await guild.invites():
+        if invite.code == code:
+            await invite.delete(reason="discord_cli invite delete")
+            return {"deleted": code}
+    raise CliError(f"Invite {code} not found")
