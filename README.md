@@ -2,7 +2,7 @@
 
 **discord-cli** is a command-line interface for managing Discord servers and automating Discord operations via AI agents. It provides 50+ commands for channel management, role administration, member moderation, message operations, and more — all from the terminal with JSON output for programmatic consumption.
 
-[![PyPI version](https://badge.fury.io/py/discord-cli.svg)](https://badge.fury.io/py/discord-cli)
+[![PyPI version](https://badge.fury.io/py/discordcli.svg)](https://pypi.org/project/discordcli/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/container.yaml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions)
@@ -46,8 +46,10 @@ discord-cli provides **50+ commands** organized into 12 command groups:
 ### pip (recommended)
 
 ```bash
-pip install discord-cli
+pip install discordcli
 ```
+
+The PyPI package is named `discordcli`; the installed command remains `discord-cli`.
 
 ### From source
 
