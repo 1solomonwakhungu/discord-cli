@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any, Callable
 
 import discord
 
@@ -54,7 +55,9 @@ def fallback_intents() -> discord.Intents:
     return intents
 
 
-async def _run_async(action: Action, kwargs: dict[str, Any], token: str) -> tuple[Any, dict[str, Any] | None]:
+async def _run_async(
+    action: Action, kwargs: dict[str, Any], token: str
+) -> tuple[Any, dict[str, Any] | None]:
     last_error: dict[str, Any] | None = None
     for intents in (discord.Intents.all(), fallback_intents()):
         client = ManagementClient(action, kwargs, intents)
@@ -75,19 +78,23 @@ async def _run_async(action: Action, kwargs: dict[str, Any], token: str) -> tupl
     return None, last_error
 
 
-def run_bot(action: Action, kwargs: dict[str, Any], token: str) -> tuple[Any, dict[str, Any] | None]:
+def run_bot(
+    action: Action, kwargs: dict[str, Any], token: str
+) -> tuple[Any, dict[str, Any] | None]:
     """Run `action` against a freshly connected bot and return (result, error)."""
     return asyncio.run(_run_async(action, kwargs, token))
 
 
-def run_action(action: Action, kwargs: dict[str, Any], human: bool, token: str | None = None) -> None:
+def run_action(
+    action: Action, kwargs: dict[str, Any], human: bool, token: str | None = None
+) -> None:
     """Load config, run the action against the bot, print the payload, and exit with its status."""
     try:
         bot_token = load_config(token).bot_token
     except DiscordCliError as exc:
         payload = make_payload(error={"type": exc.__class__.__name__, "message": str(exc)})
         print_output(payload, human)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     result, error = run_bot(action, kwargs, bot_token)
     payload = make_payload(result, error)

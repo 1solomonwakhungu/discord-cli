@@ -8,7 +8,15 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import channel_to_dict, get_channel, get_guild, get_member, get_role, overwrite_to_dict, parse_permissions
+from discord_cli.models import (
+    channel_to_dict,
+    get_channel,
+    get_guild,
+    get_member,
+    get_role,
+    overwrite_to_dict,
+    parse_permissions,
+)
 from discord_cli.registry import invoke, registry
 
 
@@ -39,7 +47,15 @@ def permissions_set(
     allow: str | None,
     deny: str | None,
 ) -> None:
-    invoke(ctx, action_permissions_set, channel_id=channel_id, role_id=role_id, user_id=user_id, allow=allow, deny=deny)
+    invoke(
+        ctx,
+        action_permissions_set,
+        channel_id=channel_id,
+        role_id=role_id,
+        user_id=user_id,
+        allow=allow,
+        deny=deny,
+    )
 
 
 @permissions_group.command("reset")
@@ -47,16 +63,23 @@ def permissions_set(
 @click.option("--role", "role_id", type=int, default=None)
 @click.option("--user", "user_id", type=int, default=None)
 @click.pass_context
-def permissions_reset(ctx: click.Context, channel_id: int, role_id: int | None, user_id: int | None) -> None:
+def permissions_reset(
+    ctx: click.Context, channel_id: int, role_id: int | None, user_id: int | None
+) -> None:
     invoke(ctx, action_permissions_reset, channel_id=channel_id, role_id=role_id, user_id=user_id)
 
 
-async def action_permissions_list(client: discord.Client, guild_id: int | None, channel_id: int, **_: Any) -> Any:
+async def action_permissions_list(
+    client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     channel = get_channel(guild, channel_id)
     if not hasattr(channel, "overwrites"):
         raise CliError("Channel does not support permission overwrites")
-    return {"channel": channel_to_dict(channel), "overwrites": [overwrite_to_dict(t, o) for t, o in channel.overwrites.items()]}
+    return {
+        "channel": channel_to_dict(channel),
+        "overwrites": [overwrite_to_dict(t, o) for t, o in channel.overwrites.items()],
+    }
 
 
 async def action_permissions_set(

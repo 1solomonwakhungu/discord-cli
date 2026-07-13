@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import click
+import discord
 
 from ..client import run_bot
 from ..output import output
@@ -26,14 +27,16 @@ def list_threads(ctx: click.Context, channel_id: int | None) -> None:
             if channel_id and channel.id != channel_id:
                 continue
             for thread in channel.threads:
-                result.append({
-                    "id": thread.id,
-                    "name": thread.name,
-                    "channel_id": thread.parent_id,
-                    "archived": thread.archived,
-                    "locked": thread.locked,
-                    "member_count": thread.member_count,
-                })
+                result.append(
+                    {
+                        "id": thread.id,
+                        "name": thread.name,
+                        "channel_id": thread.parent_id,
+                        "archived": thread.archived,
+                        "locked": thread.locked,
+                        "member_count": thread.member_count,
+                    }
+                )
         return result
 
     result, error = run_bot(_action, ctx=ctx)
@@ -54,7 +57,10 @@ def create_thread(ctx: click.Context, channel_id: int, name: str, thread_type: s
         if not channel:
             raise ValueError(f"Channel {channel_id} not found")
         thread = await channel.create_thread(
-            name=name, type=discord.ChannelType.private_thread if thread_type == "private" else discord.ChannelType.public_thread
+            name=name,
+            type=discord.ChannelType.private_thread
+            if thread_type == "private"
+            else discord.ChannelType.public_thread,
         )
         return {"id": thread.id, "name": thread.name}
 

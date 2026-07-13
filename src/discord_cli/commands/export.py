@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 
 import click
 
@@ -33,24 +32,29 @@ def export_channel(ctx: click.Context, channel_id: int, limit: int, fmt: str) ->
 
         messages = []
         async for msg in channel.history(limit=limit):
-            messages.append({
-                "id": msg.id,
-                "author_id": msg.author.id,
-                "author_name": msg.author.name,
-                "content": msg.content,
-                "created_at": msg.created_at.isoformat(),
-                "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
-                "attachments": [
-                    {"url": a.url, "filename": a.filename, "content_type": a.content_type}
-                    for a in msg.attachments
-                ],
-                "embeds": len(msg.embeds),
-                "pinned": msg.pinned,
-            })
+            messages.append(
+                {
+                    "id": msg.id,
+                    "author_id": msg.author.id,
+                    "author_name": msg.author.name,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat(),
+                    "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
+                    "attachments": [
+                        {"url": a.url, "filename": a.filename, "content_type": a.content_type}
+                        for a in msg.attachments
+                    ],
+                    "embeds": len(msg.embeds),
+                    "pinned": msg.pinned,
+                }
+            )
 
         if fmt == "csv":
             output_buf = io.StringIO()
-            writer = csv.DictWriter(output_buf, fieldnames=["id", "author_id", "author_name", "content", "created_at", "pinned"])
+            writer = csv.DictWriter(
+                output_buf,
+                fieldnames=["id", "author_id", "author_name", "content", "created_at", "pinned"],
+            )
             writer.writeheader()
             for m in messages:
                 writer.writerow({k: m.get(k, "") for k in writer.fieldnames})

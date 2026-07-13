@@ -30,13 +30,15 @@ def search_messages(ctx: click.Context, channel_id: int | None, query: str, limi
                 continue
             async for msg in channel.history(limit=limit):
                 if query.lower() in msg.content.lower():
-                    results.append({
-                        "id": msg.id,
-                        "channel_id": channel.id,
-                        "author_id": msg.author.id,
-                        "content": msg.content[:200],
-                        "created_at": msg.created_at.isoformat(),
-                    })
+                    results.append(
+                        {
+                            "id": msg.id,
+                            "channel_id": channel.id,
+                            "author_id": msg.author.id,
+                            "content": msg.content[:200],
+                            "created_at": msg.created_at.isoformat(),
+                        }
+                    )
                     if len(results) >= limit:
                         return results
         return results

@@ -117,7 +117,11 @@ async def action_guild_info(client: discord.Client, guild_id: int | None, **_: A
 
 async def action_guild_edit(client: discord.Client, guild_id: int | None, **kwargs: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    edits = {k: v for k, v in {"name": kwargs.get("name"), "description": kwargs.get("description")}.items() if v is not None}
+    edits = {
+        k: v
+        for k, v in {"name": kwargs.get("name"), "description": kwargs.get("description")}.items()
+        if v is not None
+    }
     if not edits:
         raise CliError("No edits provided")
     await guild.edit(**edits, reason="discord_cli guild edit")
@@ -147,11 +151,22 @@ async def action_guild_emojis_create(
     client: discord.Client, guild_id: int | None, name: str, image: str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    emoji = await guild.create_custom_emoji(name=name, image=read_image_bytes(image), reason="discord_cli emoji create")
-    return {"created": {"id": emoji.id, "name": emoji.name, "url": str(emoji.url), "animated": emoji.animated}}
+    emoji = await guild.create_custom_emoji(
+        name=name, image=read_image_bytes(image), reason="discord_cli emoji create"
+    )
+    return {
+        "created": {
+            "id": emoji.id,
+            "name": emoji.name,
+            "url": str(emoji.url),
+            "animated": emoji.animated,
+        }
+    }
 
 
-async def action_guild_emojis_delete(client: discord.Client, guild_id: int | None, emoji_id: int, **_: Any) -> Any:
+async def action_guild_emojis_delete(
+    client: discord.Client, guild_id: int | None, emoji_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     emoji = discord.utils.get(guild.emojis, id=emoji_id)
     if emoji is None:
@@ -185,7 +200,10 @@ async def action_guild_bans_list(client: discord.Client, guild_id: int | None, *
     return {
         "guild_id": guild.id,
         "bans": [
-            {"user": {"id": entry.user.id, "name": str(entry.user), "bot": entry.user.bot}, "reason": entry.reason}
+            {
+                "user": {"id": entry.user.id, "name": str(entry.user), "bot": entry.user.bot},
+                "reason": entry.reason,
+            }
             for entry in bans
         ],
     }
@@ -210,7 +228,9 @@ async def action_guild_regions(client: discord.Client, guild_id: int | None, **_
     }
 
 
-async def action_guild_prune(client: discord.Client, guild_id: int | None, days: int, dry_run: bool, **_: Any) -> Any:
+async def action_guild_prune(
+    client: discord.Client, guild_id: int | None, days: int, dry_run: bool, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     if dry_run:
         count = await guild.estimate_pruned_members(days=days)

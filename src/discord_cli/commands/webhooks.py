@@ -46,7 +46,9 @@ def webhook_info(ctx: click.Context, webhook_id: int) -> None:
     invoke(ctx, action_webhook_info, webhook_id=webhook_id)
 
 
-async def action_webhook_list(client: discord.Client, guild_id: int | None, channel_id: int | None, **_: Any) -> Any:
+async def action_webhook_list(
+    client: discord.Client, guild_id: int | None, channel_id: int | None, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     webhooks = await (get_channel(guild, channel_id).webhooks() if channel_id else guild.webhooks())
     return {"webhooks": [webhook_to_dict(w) for w in webhooks]}
@@ -63,7 +65,9 @@ async def action_webhook_create(
     return {"created": webhook_to_dict(webhook)}
 
 
-async def action_webhook_delete(client: discord.Client, guild_id: int | None, webhook_id: int, **_: Any) -> Any:
+async def action_webhook_delete(
+    client: discord.Client, guild_id: int | None, webhook_id: int, **_: Any
+) -> Any:
     await get_guild(client, guild_id)
     webhook = await client.fetch_webhook(webhook_id)
     data = webhook_to_dict(webhook)
@@ -71,6 +75,8 @@ async def action_webhook_delete(client: discord.Client, guild_id: int | None, we
     return {"deleted": data}
 
 
-async def action_webhook_info(client: discord.Client, guild_id: int | None, webhook_id: int, **_: Any) -> Any:
+async def action_webhook_info(
+    client: discord.Client, guild_id: int | None, webhook_id: int, **_: Any
+) -> Any:
     await get_guild(client, guild_id)
     return webhook_to_dict(await client.fetch_webhook(webhook_id))

@@ -43,24 +43,33 @@ def category_delete(ctx: click.Context, category_id: int) -> None:
 @click.option("--name", default=None)
 @click.option("--position", type=int, default=None)
 @click.pass_context
-def category_edit(ctx: click.Context, category_id: int, name: str | None, position: int | None) -> None:
+def category_edit(
+    ctx: click.Context, category_id: int, name: str | None, position: int | None
+) -> None:
     invoke(ctx, action_category_edit, category_id=category_id, name=name, position=position)
 
 
 async def action_category_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    return {"guild_id": guild.id, "categories": [channel_to_dict(c, detailed=True) for c in guild.categories]}
+    return {
+        "guild_id": guild.id,
+        "categories": [channel_to_dict(c, detailed=True) for c in guild.categories],
+    }
 
 
 async def action_category_create(
     client: discord.Client, guild_id: int | None, name: str, position: int | None, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    category = await guild.create_category(name, position=position, reason="discord_cli category create")
+    category = await guild.create_category(
+        name, position=position, reason="discord_cli category create"
+    )
     return {"created": channel_to_dict(category, detailed=True)}
 
 
-async def action_category_delete(client: discord.Client, guild_id: int | None, category_id: int, **_: Any) -> Any:
+async def action_category_delete(
+    client: discord.Client, guild_id: int | None, category_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     category = get_category(guild, category_id)
     data = channel_to_dict(category)
@@ -68,10 +77,16 @@ async def action_category_delete(client: discord.Client, guild_id: int | None, c
     return {"deleted": data}
 
 
-async def action_category_edit(client: discord.Client, guild_id: int | None, category_id: int, **kwargs: Any) -> Any:
+async def action_category_edit(
+    client: discord.Client, guild_id: int | None, category_id: int, **kwargs: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     category = get_category(guild, category_id)
-    edits = {k: v for k, v in {"name": kwargs.get("name"), "position": kwargs.get("position")}.items() if v is not None}
+    edits = {
+        k: v
+        for k, v in {"name": kwargs.get("name"), "position": kwargs.get("position")}.items()
+        if v is not None
+    }
     if not edits:
         raise CliError("No edits provided")
     await category.edit(**edits, reason="discord_cli category edit")

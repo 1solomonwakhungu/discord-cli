@@ -46,7 +46,9 @@ def list_invites(ctx: click.Context) -> None:
 @click.option("--max-uses", type=int, default=0, help="Max uses (0=unlimited)")
 @click.option("--temporary", is_flag=True, help="Temporary membership")
 @click.pass_context
-def create_invite(ctx: click.Context, channel_id: int, max_age: int, max_uses: int, temporary: bool) -> None:
+def create_invite(
+    ctx: click.Context, channel_id: int, max_age: int, max_uses: int, temporary: bool
+) -> None:
     """Create an invite."""
 
     async def _action(client, **kwargs):

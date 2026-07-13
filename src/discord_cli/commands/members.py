@@ -7,7 +7,14 @@ from typing import Any
 import click
 import discord
 
-from discord_cli.models import get_guild, get_member, iso, member_to_dict, parse_duration, role_to_dict
+from discord_cli.models import (
+    get_guild,
+    get_member,
+    iso,
+    member_to_dict,
+    parse_duration,
+    role_to_dict,
+)
 from discord_cli.registry import invoke, registry
 
 
@@ -42,8 +49,16 @@ def member_kick(ctx: click.Context, member_id: int, reason: str | None) -> None:
 @click.option("--reason", default=None)
 @click.option("--delete-message-days", type=int, default=0)
 @click.pass_context
-def member_ban(ctx: click.Context, member_id: int, reason: str | None, delete_message_days: int) -> None:
-    invoke(ctx, action_member_ban, member_id=member_id, reason=reason, delete_message_days=delete_message_days)
+def member_ban(
+    ctx: click.Context, member_id: int, reason: str | None, delete_message_days: int
+) -> None:
+    invoke(
+        ctx,
+        action_member_ban,
+        member_id=member_id,
+        reason=reason,
+        delete_message_days=delete_message_days,
+    )
 
 
 @member_group.command("unban")
@@ -100,7 +115,9 @@ async def action_member_list(client: discord.Client, guild_id: int | None, **_: 
         }
 
 
-async def action_member_info(client: discord.Client, guild_id: int | None, member_id: int, **_: Any) -> Any:
+async def action_member_info(
+    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     return member_to_dict(await get_member(guild, member_id), detailed=True)
 
@@ -133,7 +150,9 @@ async def action_member_ban(
     return {"banned": data}
 
 
-async def action_member_unban(client: discord.Client, guild_id: int | None, user_id: int, **_: Any) -> Any:
+async def action_member_unban(
+    client: discord.Client, guild_id: int | None, user_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     user = await client.fetch_user(user_id)
     await guild.unban(user, reason="discord_cli member unban")
@@ -155,7 +174,9 @@ async def action_member_timeout(
     return {"timed_out": member_to_dict(member, detailed=True), "until": iso(until)}
 
 
-async def action_member_untimeout(client: discord.Client, guild_id: int | None, member_id: int, **_: Any) -> Any:
+async def action_member_untimeout(
+    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
     await member.timeout(None, reason="discord_cli member untimeout")
@@ -171,7 +192,9 @@ async def action_member_nickname(
     return {"updated": member_to_dict(member, detailed=True)}
 
 
-async def action_member_roles(client: discord.Client, guild_id: int | None, member_id: int, **_: Any) -> Any:
+async def action_member_roles(
+    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
     return {"member": member_to_dict(member), "roles": [role_to_dict(r) for r in member.roles]}

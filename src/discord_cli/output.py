@@ -41,7 +41,9 @@ def print_human(payload: dict[str, Any]) -> None:
             for row in rows:
                 table.add_row(
                     *[
-                        json.dumps(row.get(key), default=str) if isinstance(row.get(key), (dict, list)) else str(row.get(key))
+                        json.dumps(row.get(key), default=str)
+                        if isinstance(row.get(key), (dict, list))
+                        else str(row.get(key))
                         for key in keys
                     ]
                 )

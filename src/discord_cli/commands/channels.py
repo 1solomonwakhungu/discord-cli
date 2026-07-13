@@ -25,7 +25,9 @@ def channel_list(ctx: click.Context) -> None:
 
 @channel_group.command("create")
 @click.argument("name")
-@click.option("--type", "channel_type", type=click.Choice(["text", "voice", "stage", "forum"]), default="text")
+@click.option(
+    "--type", "channel_type", type=click.Choice(["text", "voice", "stage", "forum"]), default="text"
+)
 @click.option("--category", type=int, default=None)
 @click.option("--topic", default=None)
 @click.option("--position", type=int, default=None)
@@ -147,7 +149,9 @@ async def action_channel_create(client: discord.Client, guild_id: int | None, **
     return {"created": channel_to_dict(channel, detailed=True)}
 
 
-async def action_channel_delete(client: discord.Client, guild_id: int | None, channel_id: int, **_: Any) -> Any:
+async def action_channel_delete(
+    client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     channel = get_channel(guild, channel_id)
     data = channel_to_dict(channel)
@@ -155,7 +159,9 @@ async def action_channel_delete(client: discord.Client, guild_id: int | None, ch
     return {"deleted": data}
 
 
-async def action_channel_edit(client: discord.Client, guild_id: int | None, channel_id: int, **kwargs: Any) -> Any:
+async def action_channel_edit(
+    client: discord.Client, guild_id: int | None, channel_id: int, **kwargs: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     channel = get_channel(guild, channel_id)
     edits: dict[str, Any] = {}
@@ -185,6 +191,8 @@ async def action_channel_move(
     return {"updated": channel_to_dict(channel, detailed=True)}
 
 
-async def action_channel_info(client: discord.Client, guild_id: int | None, channel_id: int, **_: Any) -> Any:
+async def action_channel_info(
+    client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     return channel_to_dict(get_channel(guild, channel_id), detailed=True)

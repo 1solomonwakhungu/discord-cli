@@ -8,7 +8,15 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_guild, get_member, get_role, member_to_dict, parse_color, parse_permissions, role_to_dict
+from discord_cli.models import (
+    get_guild,
+    get_member,
+    get_role,
+    member_to_dict,
+    parse_color,
+    parse_permissions,
+    role_to_dict,
+)
 from discord_cli.registry import TRI_STATE_BOOL, invoke, registry
 
 
@@ -31,7 +39,12 @@ def role_list(ctx: click.Context) -> None:
 @click.option("--hoist", is_flag=True, default=False)
 @click.pass_context
 def role_create(
-    ctx: click.Context, name: str, color: str | None, permissions: str | None, mentionable: bool, hoist: bool
+    ctx: click.Context,
+    name: str,
+    color: str | None,
+    permissions: str | None,
+    mentionable: bool,
+    hoist: bool,
 ) -> None:
     invoke(
         ctx,
@@ -121,7 +134,9 @@ async def action_role_create(client: discord.Client, guild_id: int | None, **kwa
     return {"created": role_to_dict(role)}
 
 
-async def action_role_delete(client: discord.Client, guild_id: int | None, role_id: int, **_: Any) -> Any:
+async def action_role_delete(
+    client: discord.Client, guild_id: int | None, role_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     role = get_role(guild, role_id)
     data = role_to_dict(role)
@@ -129,7 +144,9 @@ async def action_role_delete(client: discord.Client, guild_id: int | None, role_
     return {"deleted": data}
 
 
-async def action_role_edit(client: discord.Client, guild_id: int | None, role_id: int, **kwargs: Any) -> Any:
+async def action_role_edit(
+    client: discord.Client, guild_id: int | None, role_id: int, **kwargs: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     role = get_role(guild, role_id)
     edits: dict[str, Any] = {}
@@ -149,7 +166,9 @@ async def action_role_edit(client: discord.Client, guild_id: int | None, role_id
     return {"updated": role_to_dict(role)}
 
 
-async def action_role_assign(client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any) -> Any:
+async def action_role_assign(
+    client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, user_id)
     role = get_role(guild, role_id)
@@ -157,7 +176,9 @@ async def action_role_assign(client: discord.Client, guild_id: int | None, role_
     return {"assigned": {"role": role_to_dict(role), "member": member_to_dict(member)}}
 
 
-async def action_role_remove(client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any) -> Any:
+async def action_role_remove(
+    client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, user_id)
     role = get_role(guild, role_id)
@@ -165,6 +186,8 @@ async def action_role_remove(client: discord.Client, guild_id: int | None, role_
     return {"removed": {"role": role_to_dict(role), "member": member_to_dict(member)}}
 
 
-async def action_role_info(client: discord.Client, guild_id: int | None, role_id: int, **_: Any) -> Any:
+async def action_role_info(
+    client: discord.Client, guild_id: int | None, role_id: int, **_: Any
+) -> Any:
     guild = await get_guild(client, guild_id)
     return role_to_dict(get_role(guild, role_id))

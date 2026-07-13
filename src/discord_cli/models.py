@@ -115,8 +115,12 @@ def member_to_dict(member: discord.Member, detailed: bool = False) -> dict[str, 
         "bot": member.bot,
         "joined_at": iso(member.joined_at),
         "created_at": iso(member.created_at),
-        "roles": [{"id": role.id, "name": role.name} for role in member.roles if role.name != "@everyone"],
-        "top_role": {"id": member.top_role.id, "name": member.top_role.name} if member.top_role else None,
+        "roles": [
+            {"id": role.id, "name": role.name} for role in member.roles if role.name != "@everyone"
+        ],
+        "top_role": {"id": member.top_role.id, "name": member.top_role.name}
+        if member.top_role
+        else None,
     }
     if detailed:
         data.update(
@@ -132,7 +136,9 @@ def member_to_dict(member: discord.Member, detailed: bool = False) -> dict[str, 
     return data
 
 
-def channel_to_dict(channel: discord.abc.GuildChannel | discord.Thread, detailed: bool = False) -> dict[str, Any]:
+def channel_to_dict(
+    channel: discord.abc.GuildChannel | discord.Thread, detailed: bool = False
+) -> dict[str, Any]:
     data = {
         "id": channel.id,
         "name": channel.name,
@@ -175,7 +181,9 @@ def message_to_dict(message: discord.Message) -> dict[str, Any]:
         "created_at": iso(message.created_at),
         "edited_at": iso(message.edited_at),
         "pinned": message.pinned,
-        "attachments": [{"url": a.url, "filename": a.filename, "size": a.size} for a in message.attachments],
+        "attachments": [
+            {"url": a.url, "filename": a.filename, "size": a.size} for a in message.attachments
+        ],
         "embeds": [embed.to_dict() for embed in message.embeds],
         "reactions": [{"emoji": str(r.emoji), "count": r.count} for r in message.reactions],
     }
@@ -200,7 +208,9 @@ def invite_to_dict(invite: discord.Invite) -> dict[str, Any]:
         "url": invite.url,
         "channel_id": invite.channel.id if invite.channel else None,
         "channel_name": invite.channel.name if invite.channel else None,
-        "inviter": {"id": invite.inviter.id, "name": str(invite.inviter)} if invite.inviter else None,
+        "inviter": {"id": invite.inviter.id, "name": str(invite.inviter)}
+        if invite.inviter
+        else None,
         "uses": invite.uses,
         "max_uses": invite.max_uses,
         "max_age": invite.max_age,
@@ -273,6 +283,8 @@ def get_role(guild: discord.Guild, role_id: int) -> discord.Role:
 
 async def get_message(guild: discord.Guild, channel_id: int, message_id: int) -> discord.Message:
     channel = get_channel(guild, channel_id)
-    if not isinstance(channel, (discord.TextChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+    if not isinstance(
+        channel, (discord.TextChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)
+    ):
         raise CliError("Channel does not support messages")
     return await channel.fetch_message(message_id)

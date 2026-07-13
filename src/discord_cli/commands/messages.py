@@ -22,7 +22,9 @@ def message_group() -> None:
 @click.option("--content", default=None)
 @click.option("--embed-json", default=None)
 @click.pass_context
-def message_send(ctx: click.Context, channel_id: int, content: str | None, embed_json: str | None) -> None:
+def message_send(
+    ctx: click.Context, channel_id: int, content: str | None, embed_json: str | None
+) -> None:
     invoke(ctx, action_message_send, channel_id=channel_id, content=content, embed_json=embed_json)
 
 
@@ -52,7 +54,14 @@ def message_delete(ctx: click.Context, message_id: int, channel_id: int) -> None
 def message_purge(
     ctx: click.Context, channel_id: int, limit: int, user_id: int | None, contains: str | None
 ) -> None:
-    invoke(ctx, action_message_purge, channel_id=channel_id, limit=limit, user_id=user_id, contains=contains)
+    invoke(
+        ctx,
+        action_message_purge,
+        channel_id=channel_id,
+        limit=limit,
+        user_id=user_id,
+        contains=contains,
+    )
 
 
 @message_group.command("fetch")
@@ -108,7 +117,12 @@ async def action_message_send(
 
 
 async def action_message_edit(
-    client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, content: str, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    message_id: int,
+    channel_id: int,
+    content: str,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
     message = await get_message(guild, channel_id, message_id)
@@ -177,7 +191,12 @@ async def action_message_unpin(
 
 
 async def action_message_react(
-    client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, emoji: str, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    message_id: int,
+    channel_id: int,
+    emoji: str,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
     message = await get_message(guild, channel_id, message_id)
