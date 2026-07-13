@@ -1,6 +1,7 @@
 # Python
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
 *$py.class
 *.so
 
@@ -18,6 +19,7 @@ dist/
 build/
 *.egg-info/
 .eggs/
+.tox/
 
 # Test / cache
 .pytest_cache/
@@ -33,3 +35,7 @@ htmlcov/
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Archived source
+legacy/
