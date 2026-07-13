@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a reproducible problem with discord-cli.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for reporting a bug. Please remove any tokens or sensitive server data."
+  - type: input
+    id: version
+    attributes:
+      label: discord-cli version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Run ...\n2. Observe ..."
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS and Python version.

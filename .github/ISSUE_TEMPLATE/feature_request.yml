@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement to discord-cli.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for sharing an idea. Do not include tokens or private server data."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What workflow or limitation does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
