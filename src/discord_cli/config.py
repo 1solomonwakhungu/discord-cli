@@ -15,12 +15,15 @@ class Config:
     bot_token: str
 
 
-def load_config() -> Config:
-    """Load configuration from environment variables and a local .env file."""
+def load_config(token_override: str | None = None) -> Config:
+    """Load configuration, preferring --token, then the environment, then a local .env file."""
+    if token_override:
+        return Config(bot_token=token_override.strip())
+
     load_dotenv()
 
     token = os.environ.get("DISCORD_BOT_TOKEN")
     if not token:
-        raise ConfigError("DISCORD_BOT_TOKEN not found in environment or .env")
+        raise ConfigError("DISCORD_BOT_TOKEN not found in environment, .env, or --token")
 
     return Config(bot_token=token.strip())

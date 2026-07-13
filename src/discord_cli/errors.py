@@ -11,3 +11,7 @@ class ConfigError(DiscordCliError):
 
 class ApiError(DiscordCliError):
     """Raised when a Discord API call fails."""
+
+
+class CliError(DiscordCliError):
+    """Raised inside a command action when the request cannot be completed."""
