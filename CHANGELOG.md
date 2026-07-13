@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release of discordcli
+- Initial release of discordcli-agents
 - 50+ commands across 12 command groups (channels, categories, roles, members, messages, guilds, permissions, webhooks, invites, threads, search, export)
 - JSON output by default with `--human` flag for table output
 - Headless operation (connect, act, disconnect)
