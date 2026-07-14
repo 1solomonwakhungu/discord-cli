@@ -43,13 +43,23 @@ and YAML/TOML validation on every commit.
 
 Keep pull requests focused, include tests when practical, and describe user-visible changes. Do not commit bot tokens, `.env` files, or other credentials.
 
-Use Conventional Commit-style subjects:
+Use Conventional Commits (required for automated releases):
 
-- `feat:` for a new feature
-- `fix:` for a bug fix
+- `feat:` for a new feature (triggers minor release)
+- `fix:` for a bug fix (triggers patch release)
 - `docs:` for documentation-only changes
 - `chore:` for maintenance
 - `refactor:` for code restructuring without behavior changes
+- `test:` for test additions
+- `ci:` for CI/CD changes
+- `perf:` for performance improvements
+- `style:` for formatting only
+- `build:` for build system changes
+
+**Breaking changes**: Use `!` after the type, e.g., `feat!: remove deprecated API`
+or include `BREAKING CHANGE:` in the commit footer.
+
+See [RELEASING.md](RELEASING.md) for how commits trigger automated releases.
 
 ### Branch naming
 
