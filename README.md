@@ -6,7 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/1solomonwakhungu/discord-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/1solomonwakhungu/discord-cli)
+
+Current release: [1.2.0](https://github.com/1solomonwakhungu/discord-cli/releases/tag/v1.2.0)
 
 ---
 
