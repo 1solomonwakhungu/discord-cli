@@ -124,7 +124,7 @@ async def action_thread_create(
             if thread_type == "private"
             else discord.ChannelType.public_thread
         ),
-        auto_archive_duration=auto_archive,
+        auto_archive_duration=auto_archive,  # type: ignore[arg-type]
     )
     return {"id": thread.id, "name": thread.name}
 
@@ -165,4 +165,4 @@ async def action_thread_members(
 ) -> list[dict[str, Any]]:
     thread = get_thread(await get_guild(client, guild_id), thread_id)
     members = await thread.fetch_members()
-    return [{"id": member.id, "name": member.name} for member in members]
+    return [{"id": member.id, "name": member.name} for member in members]  # type: ignore[attr-defined]

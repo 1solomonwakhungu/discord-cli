@@ -112,7 +112,7 @@ async def action_message_send(
     embed = embed_from_json(embed_json) if embed_json else None
     if content is None and embed is None:
         raise CliError("--content or --embed-json is required")
-    message = await channel.send(content=content, embed=embed)
+    message = await channel.send(content=content, embed=embed)  # type: ignore[arg-type]
     return {"sent": message_to_dict(message)}
 
 

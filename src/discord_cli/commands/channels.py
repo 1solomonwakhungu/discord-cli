@@ -127,17 +127,17 @@ async def action_channel_create(client: discord.Client, guild_id: int | None, **
     if ctype == "text":
         channel = await guild.create_text_channel(
             name,
-            topic=kwargs.get("topic"),
+            topic=kwargs.get("topic"),  # type: ignore[arg-type]
             nsfw=kwargs.get("nsfw", False),
             slowmode_delay=kwargs.get("slowmode") or 0,
-            **common,
+            **common,  # type: ignore[arg-type]
         )
     elif ctype == "voice":
-        channel = await guild.create_voice_channel(name, **common)
+        channel = await guild.create_voice_channel(name, **common)  # type: ignore[arg-type,assignment]
     elif ctype == "stage":
-        channel = await guild.create_stage_channel(name, **common)
+        channel = await guild.create_stage_channel(name, **common)  # type: ignore[arg-type,assignment]
     elif ctype == "forum":
-        channel = await guild.create_forum_channel(
+        channel = await guild.create_forum_channel(  # type: ignore[attr-defined]
             name,
             topic=kwargs.get("topic"),
             nsfw=kwargs.get("nsfw", False),
@@ -177,7 +177,7 @@ async def action_channel_edit(
         edits["nsfw"] = kwargs["nsfw"]
     if not edits:
         raise CliError("No edits provided")
-    edited = await channel.edit(**edits, reason="discord_cli channel edit")
+    edited = await channel.edit(**edits, reason="discord_cli channel edit")  # type: ignore[union-attr]
     return {"updated": channel_to_dict(edited or channel, detailed=True)}
 
 
@@ -187,7 +187,7 @@ async def action_channel_move(
     guild = await get_guild(client, guild_id)
     channel = get_channel(guild, channel_id)
     new_category = get_category(guild, category)
-    await channel.edit(category=new_category, reason="discord_cli channel move")
+    await channel.edit(category=new_category, reason="discord_cli channel move")  # type: ignore[call-arg,union-attr]
     return {"updated": channel_to_dict(channel, detailed=True)}
 
 
