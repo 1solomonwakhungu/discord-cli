@@ -50,7 +50,7 @@ async def action_webhook_list(
     client: discord.Client, guild_id: int | None, channel_id: int | None, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    webhooks = await (get_channel(guild, channel_id).webhooks() if channel_id else guild.webhooks())
+    webhooks = await (get_channel(guild, channel_id).webhooks() if channel_id else guild.webhooks())  # type: ignore[union-attr]
     return {"webhooks": [webhook_to_dict(w) for w in webhooks]}
 
 

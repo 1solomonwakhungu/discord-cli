@@ -62,7 +62,9 @@ async def action_category_create(
 ) -> Any:
     guild = await get_guild(client, guild_id)
     category = await guild.create_category(
-        name, position=position, reason="discord_cli category create"
+        name,
+        position=position,
+        reason="discord_cli category create",  # type: ignore[arg-type]
     )
     return {"created": channel_to_dict(category, detailed=True)}
 
@@ -72,8 +74,8 @@ async def action_category_delete(
 ) -> Any:
     guild = await get_guild(client, guild_id)
     category = get_category(guild, category_id)
-    data = channel_to_dict(category)
-    await category.delete(reason="discord_cli category delete")
+    data = channel_to_dict(category)  # type: ignore[arg-type]
+    await category.delete(reason="discord_cli category delete")  # type: ignore[union-attr]
     return {"deleted": data}
 
 
@@ -89,5 +91,5 @@ async def action_category_edit(
     }
     if not edits:
         raise CliError("No edits provided")
-    await category.edit(**edits, reason="discord_cli category edit")
-    return {"updated": channel_to_dict(category, detailed=True)}
+    await category.edit(**edits, reason="discord_cli category edit")  # type: ignore[union-attr]
+    return {"updated": channel_to_dict(category, detailed=True)}  # type: ignore[arg-type]

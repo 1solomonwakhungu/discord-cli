@@ -78,7 +78,7 @@ async def action_permissions_list(
         raise CliError("Channel does not support permission overwrites")
     return {
         "channel": channel_to_dict(channel),
-        "overwrites": [overwrite_to_dict(t, o) for t, o in channel.overwrites.items()],
+        "overwrites": [overwrite_to_dict(t, o) for t, o in channel.overwrites.items()],  # type: ignore[arg-type]
     }
 
 
@@ -96,11 +96,11 @@ async def action_permissions_set(
     channel = get_channel(guild, channel_id)
     if (role_id is None) == (user_id is None):
         raise CliError("Specify exactly one of --role or --user")
-    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)
+    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)  # type: ignore[arg-type]
     allow_perms = parse_permissions(allow) or discord.Permissions.none()
     deny_perms = parse_permissions(deny) or discord.Permissions.none()
     overwrite = discord.PermissionOverwrite.from_pair(allow_perms, deny_perms)
-    await channel.set_permissions(target, overwrite=overwrite, reason="discord_cli permissions set")
+    await channel.set_permissions(target, overwrite=overwrite, reason="discord_cli permissions set")  # type: ignore[union-attr]
     return {"set": overwrite_to_dict(target, overwrite)}
 
 
@@ -116,6 +116,6 @@ async def action_permissions_reset(
     channel = get_channel(guild, channel_id)
     if (role_id is None) == (user_id is None):
         raise CliError("Specify exactly one of --role or --user")
-    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)
-    await channel.set_permissions(target, overwrite=None, reason="discord_cli permissions reset")
+    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)  # type: ignore[arg-type]
+    await channel.set_permissions(target, overwrite=None, reason="discord_cli permissions reset")  # type: ignore[union-attr]
     return {"reset": {"target_id": target.id, "target_name": getattr(target, "name", str(target))}}
