@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Report
+    url: https://github.com/1solomonwakhungu/discord-cli/security/advisories/new
+    about: Report a security vulnerability privately
+  - name: Discussions
+    url: https://github.com/1solomonwakhungu/discord-cli/discussions
+    about: Ask questions and discuss with the community

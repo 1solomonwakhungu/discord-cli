@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "discord-cli: Command-line tool for managing Discord servers and automating Discord via AI agents"
+type: software
+authors:
+  - alias: 1solomonwakhungu
+repository-code: "https://github.com/1solomonwakhungu/discord-cli"
+url: "https://github.com/1solomonwakhungu/discord-cli"
+abstract: "A comprehensive CLI tool for managing Discord servers using discord.py 2.x. Features 50+ commands across 12 command groups with JSON-first output designed for AI agent consumption. Supports channels, roles, members, messages, permissions, webhooks, invites, threads, and more."
+keywords:
+  - discord
+  - cli
+  - discord-bot
+  - discord-automation
+  - ai-agent
+  - developer-tools
+license: MIT
+version: "0.1.1"
+date-released: "2026-07-13"

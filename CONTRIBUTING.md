@@ -26,6 +26,19 @@ If the repository has no tests for your change yet, run the import smoke test:
 python -c "import discord_cli; print(discord_cli.__version__)"
 ```
 
+## Pre-commit hooks
+
+This project uses [pre-commit](https://pre-commit.dev/) to enforce code quality
+before commits are made. Install it once after cloning:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+This runs `ruff` (lint + format), trailing-whitespace checks, end-of-file fixers,
+and YAML/TOML validation on every commit.
+
 ## Pull requests
 
 Keep pull requests focused, include tests when practical, and describe user-visible changes. Do not commit bot tokens, `.env` files, or other credentials.
@@ -37,3 +50,27 @@ Use Conventional Commit-style subjects:
 - `docs:` for documentation-only changes
 - `chore:` for maintenance
 - `refactor:` for code restructuring without behavior changes
+
+### Branch naming
+
+- `feat/description` — new features
+- `fix/description` — bug fixes
+- `docs/description` — documentation
+- `chore/description` — maintenance tasks
+
+### Code style
+
+- Line length: 100 characters (enforced by ruff)
+- Target Python version: 3.9+
+- Imports sorted with ruff (isort-compatible)
+- Type hints encouraged on all public functions
+
+### Testing
+
+Write tests for new features in `tests/` mirroring the `src/` structure. Run:
+
+```bash
+python -m pytest tests/ -v --cov=discord_cli --cov-report=term-missing
+```
+
+Coverage threshold is 80%. All tests must pass offline (no real Discord token needed).
