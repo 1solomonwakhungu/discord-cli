@@ -52,6 +52,28 @@ pip install discordcli-agents
 
 The PyPI package is named `discordcli-agents`; the installed command remains `discord-cli`.
 
+### Homebrew
+
+```bash
+brew install ./packaging/homebrew/discordcli-agents.rb
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop install ./packaging/scoop/discordcli-agents.json
+```
+
+### npm
+
+```bash
+npx discordcli-agents
+# or
+npm install -g discordcli-agents
+```
+
+The npm package is a thin wrapper that installs `discordcli-agents` via pip and forwards commands to `discord-cli`. See [packaging/npm](packaging/npm) for details.
+
 ### From source
 
 ```bash
