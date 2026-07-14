@@ -1,7 +1,8 @@
 class DiscordcliAgents < Formula
   desc "Command-line tool for managing Discord servers and automating Discord via AI agents"
   homepage "https://github.com/1solomonwakhungu/discord-cli"
-  url "https://files.pythonhosted.org/packages/source/d/discordcli-agents/discordcli-agents-1.1.0.tar.gz"
+  url "https://files.pythonhosted.org/packages/17/41/20e963c8759905290dee3a1890fb59af2172b86cd8cf68aafeca3a12b24a/discordcli_agents-1.2.0.tar.gz"
+  sha256 "568e493bf66e3a644d6b47365e60baf7f90e5978c3499fc6b760cfe5725ee52c"
   license "MIT"
 
   depends_on "python@3.12"

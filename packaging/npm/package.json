@@ -1,6 +1,6 @@
 {
   "name": "discordcli-agents",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "npm wrapper that installs discordcli-agents (Python CLI for managing Discord servers and automating Discord via AI agents) via pip",
   "license": "MIT",
   "homepage": "https://github.com/1solomonwakhungu/discord-cli",

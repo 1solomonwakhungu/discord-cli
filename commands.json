@@ -1,6 +1,6 @@
 {
   "name": "discord-cli",
-  "version": "0.1.1",
+  "version": "1.2.0",
   "description": "Command-line tool for managing Discord servers via AI agents",
   "output_format": "json",
   "global_options": [

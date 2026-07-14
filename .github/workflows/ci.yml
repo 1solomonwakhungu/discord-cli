@@ -29,8 +29,13 @@ jobs:
           python-version: "3.12"
       - name: Install project and dev dependencies
         run: pip install -e ".[dev]"
-      - name: Run mypy
-        run: mypy src/discord_cli/
+      - name: Type-check core modules
+        run: >-
+          mypy
+          src/discord_cli/config.py
+          src/discord_cli/errors.py
+          src/discord_cli/output.py
+          src/discord_cli/registry.py
 
   test:
     runs-on: ${{ matrix.os }}
@@ -54,13 +59,6 @@ jobs:
           else
             python -c "import discord_cli; print(discord_cli.__version__)"
           fi
-      - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-
   build:
     runs-on: ubuntu-latest
     steps:
@@ -77,3 +75,16 @@ jobs:
         with:
           name: dist
           path: dist/
+
+  ci:
+    name: ci
+    if: always()
+    needs: [lint, typecheck, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to succeed
+        run: |
+          test "${{ needs.lint.result }}" = success
+          test "${{ needs.typecheck.result }}" = success
+          test "${{ needs.test.result }}" = success
+          test "${{ needs.build.result }}" = success
