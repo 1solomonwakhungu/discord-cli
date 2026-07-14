@@ -5,7 +5,7 @@ This document describes the release process for maintainers.
 ## Automated Releases (python-semantic-release)
 
 Releases are **fully automated** via [python-semantic-release](https://python-semantic-release.readthedocs.io/).
-The release workflow (`.github/workflows/release.yml`) triggers on every push to `main`.
+The release workflow (`.github/workflows/release.yml`) triggers after a pull request is merged into `main`.
 
 ### How It Works
 
@@ -19,7 +19,7 @@ The release workflow (`.github/workflows/release.yml`) triggers on every push to
 4. **Changelog**: `CHANGELOG.md` is automatically updated with the new version's changes.
 5. **Git tag**: A tag `v{version}` is created and pushed.
 6. **Build**: Source and wheel distributions are built.
-7. **PyPI publish**: The package is published to PyPI via OIDC Trusted Publishing (no API token needed).
+7. **PyPI publish**: The package is published to PyPI via OIDC Trusted Publishing in the `pypi` GitHub environment (no API token needed).
 8. **GitHub Release**: A release is created with the changelog as notes and distribution artifacts attached.
 
 ### Conventional Commits
@@ -52,17 +52,15 @@ All commits MUST follow [Conventional Commits](https://www.conventionalcommits.o
 
 If a push to main contains only non-releasable commits (e.g., `chore:`, `docs:`, `test:`), no release is created. The workflow exits successfully without publishing anything.
 
-## Manual Release (Fallback)
+## Publish an Existing Version (Fallback)
 
-If the automated workflow fails, you can trigger a manual release:
+If a version was tagged but its PyPI publish failed, use the **Release** workflow's
+**Run workflow** button and supply that existing version (for example, `1.2.0`).
+The workflow verifies that the tag's package version matches the input before it builds,
+publishes, and creates a GitHub release if needed. It does not create a new version.
 
-1. Ensure main is green (CI passes).
-2. Create and push a tag manually:
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-3. The tag-triggered release will build and publish.
+New versions are created only by the automated workflow after a Conventional Commit is
+merged into `main`; do not manually create a release tag.
 
 ## Semantic Versioning
 
@@ -105,4 +103,4 @@ https://pypi.org/manage/project/discordcli-agents/settings/publishing/
 - Owner: `1solomonwakhungu`
 - Repository: `discord-cli`
 - Workflow filename: `release.yml`
-- Environment: (leave empty or set to `pypi`)
+- Environment: `pypi`

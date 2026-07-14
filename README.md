@@ -233,4 +233,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 - [GitHub Repository](https://github.com/1solomonwakhungu/discord-cli)
 - [Issue Tracker](https://github.com/1solomonwakhungu/discord-cli/issues)
-- [PyPI Package](https://pypi.org/project/discord-cli/)
+- [PyPI Package](https://pypi.org/project/discordcli-agents/)
