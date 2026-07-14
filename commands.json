@@ -1,0 +1,145 @@
+{
+  "name": "discord-cli",
+  "version": "0.1.1",
+  "description": "Command-line tool for managing Discord servers via AI agents",
+  "output_format": "json",
+  "global_options": [
+    {"name": "--token", "type": "string", "description": "Discord bot token (overrides env/.env)"},
+    {"name": "--guild", "type": "int", "description": "Target guild ID (for multi-guild bots)"},
+    {"name": "--human", "type": "flag", "description": "Human-readable table output (default: JSON)"}
+  ],
+  "command_groups": [
+    {
+      "name": "channel",
+      "description": "Manage guild channels",
+      "commands": [
+        {"name": "list", "description": "List all channels", "args": [], "options": []},
+        {"name": "create", "description": "Create a new channel", "args": [{"name": "name", "required": true}], "options": [{"name": "--type", "default": "text", "choices": ["text", "voice", "stage", "forum"]}, {"name": "--category", "type": "int"}, {"name": "--topic", "type": "string"}, {"name": "--position", "type": "int"}, {"name": "--nsfw", "type": "flag"}, {"name": "--slowmode", "type": "int"}]},
+        {"name": "delete", "description": "Delete a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": []},
+        {"name": "edit", "description": "Edit a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--name"}, {"name": "--topic"}, {"name": "--position", "type": "int"}, {"name": "--slowmode", "type": "int"}, {"name": "--nsfw", "type": "tri_state_bool"}]},
+        {"name": "move", "description": "Move channel to category", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--category", "type": "int", "required": true}]},
+        {"name": "info", "description": "Detailed channel info", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "category",
+      "description": "Manage channel categories",
+      "commands": [
+        {"name": "list", "description": "List all categories", "args": [], "options": []},
+        {"name": "create", "description": "Create a category", "args": [{"name": "name", "required": true}], "options": [{"name": "--position", "type": "int"}]},
+        {"name": "delete", "description": "Delete a category", "args": [{"name": "category_id", "type": "int", "required": true}], "options": []},
+        {"name": "edit", "description": "Edit a category", "args": [{"name": "category_id", "type": "int", "required": true}], "options": [{"name": "--name"}, {"name": "--position", "type": "int"}]}
+      ]
+    },
+    {
+      "name": "role",
+      "description": "Manage server roles",
+      "commands": [
+        {"name": "list", "description": "List all roles", "args": [], "options": []},
+        {"name": "create", "description": "Create a role", "args": [{"name": "name", "required": true}], "options": [{"name": "--color"}, {"name": "--permissions"}, {"name": "--mentionable", "type": "flag"}, {"name": "--hoist", "type": "flag"}]},
+        {"name": "delete", "description": "Delete a role", "args": [{"name": "role_id", "type": "int", "required": true}], "options": []},
+        {"name": "edit", "description": "Edit a role", "args": [{"name": "role_id", "type": "int", "required": true}], "options": [{"name": "--name"}, {"name": "--color"}, {"name": "--permissions"}, {"name": "--mentionable", "type": "tri_state_bool"}, {"name": "--hoist", "type": "tri_state_bool"}]},
+        {"name": "assign", "description": "Assign role to user", "args": [{"name": "role_id", "type": "int", "required": true}, {"name": "user_id", "type": "int", "required": true}], "options": []},
+        {"name": "remove", "description": "Remove role from user", "args": [{"name": "role_id", "type": "int", "required": true}, {"name": "user_id", "type": "int", "required": true}], "options": []},
+        {"name": "info", "description": "Detailed role info", "args": [{"name": "role_id", "type": "int", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "member",
+      "description": "Moderate and manage members",
+      "commands": [
+        {"name": "list", "description": "List all members", "args": [], "options": []},
+        {"name": "info", "description": "Detailed member info", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []},
+        {"name": "kick", "description": "Kick a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}]},
+        {"name": "ban", "description": "Ban a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}, {"name": "--delete-message-days", "type": "int"}]},
+        {"name": "unban", "description": "Unban a user", "args": [{"name": "user_id", "type": "int", "required": true}], "options": []},
+        {"name": "timeout", "description": "Timeout a member", "args": [{"name": "member_id", "type": "int", "required": true}, {"name": "duration", "required": true}], "options": [{"name": "--reason"}]},
+        {"name": "untimeout", "description": "Remove timeout", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []},
+        {"name": "nickname", "description": "Set nickname", "args": [{"name": "member_id", "type": "int", "required": true}, {"name": "nickname", "required": true}], "options": []},
+        {"name": "roles", "description": "List roles for a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "message",
+      "description": "Manage channel messages",
+      "commands": [
+        {"name": "send", "description": "Send a message", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--content"}, {"name": "--embed-json"}]},
+        {"name": "edit", "description": "Edit a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--content", "required": true}]},
+        {"name": "delete", "description": "Delete a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "purge", "description": "Bulk delete messages", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "required": true}, {"name": "--user", "type": "int"}, {"name": "--contains"}]},
+        {"name": "fetch", "description": "Get message content", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "pin", "description": "Pin a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "unpin", "description": "Unpin a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "react", "description": "React to a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--emoji", "required": true}]}
+      ]
+    },
+    {
+      "name": "guild",
+      "description": "Server-level management",
+      "commands": [
+        {"name": "info", "description": "Server info", "args": [], "options": []},
+        {"name": "edit", "description": "Edit server", "args": [], "options": [{"name": "--name"}, {"name": "--description"}]},
+        {"name": "emojis", "description": "Emoji management (subgroup)", "args": [], "options": [], "subcommands": ["list", "create", "delete"]},
+        {"name": "stickers", "description": "Sticker management (subgroup)", "args": [], "options": [], "subcommands": ["list"]},
+        {"name": "bans", "description": "Ban management (subgroup)", "args": [], "options": [], "subcommands": ["list"]},
+        {"name": "regions", "description": "Available voice regions", "args": [], "options": []},
+        {"name": "prune", "description": "Prune inactive members", "args": [], "options": [{"name": "--days", "type": "int", "required": true}, {"name": "--dry-run", "default": "true"}]}
+      ]
+    },
+    {
+      "name": "permissions",
+      "description": "Fine-grained permission control",
+      "commands": [
+        {"name": "list", "description": "List permission overwrites", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "set", "description": "Set permissions", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--role", "type": "int"}, {"name": "--user", "type": "int"}, {"name": "--allow"}, {"name": "--deny"}]},
+        {"name": "reset", "description": "Reset permissions", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--role", "type": "int"}, {"name": "--user", "type": "int"}]}
+      ]
+    },
+    {
+      "name": "webhook",
+      "description": "Manage webhooks",
+      "commands": [
+        {"name": "list", "description": "List webhooks", "args": [], "options": [{"name": "--channel", "type": "int"}]},
+        {"name": "create", "description": "Create webhook", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--name", "required": true}]},
+        {"name": "delete", "description": "Delete webhook", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": []},
+        {"name": "info", "description": "Webhook details", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "invite",
+      "description": "Manage server invites",
+      "commands": [
+        {"name": "list", "description": "List all invites", "args": [], "options": []},
+        {"name": "create", "description": "Create invite", "args": [], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--max-age", "type": "int"}, {"name": "--max-uses", "type": "int"}, {"name": "--temporary", "type": "flag"}]},
+        {"name": "delete", "description": "Delete invite", "args": [{"name": "code", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "threads",
+      "description": "Manage forum and thread channels",
+      "commands": [
+        {"name": "list", "description": "List threads", "args": [], "options": [{"name": "--channel-id", "type": "int"}]},
+        {"name": "create", "description": "Create thread", "args": [{"name": "name", "required": true}], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--type", "default": "public", "choices": ["public", "private"]}]},
+        {"name": "delete", "description": "Delete thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
+        {"name": "archive", "description": "Archive thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
+        {"name": "unarchive", "description": "Unarchive thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
+        {"name": "members", "description": "List thread members", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []}
+      ]
+    },
+    {
+      "name": "search",
+      "description": "Search server content",
+      "commands": [
+        {"name": "messages", "description": "Search messages", "args": [{"name": "query", "required": true}], "options": [{"name": "--channel-id", "type": "int"}, {"name": "--limit", "type": "int", "default": 25}]},
+        {"name": "members", "description": "Search members", "args": [{"name": "query", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 25}]}
+      ]
+    },
+    {
+      "name": "export",
+      "description": "Export message history",
+      "commands": [
+        {"name": "channel", "description": "Export messages from a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 100}, {"name": "--format", "default": "json", "choices": ["json", "csv"]}]}
+      ]
+    }
+  ]
+}
