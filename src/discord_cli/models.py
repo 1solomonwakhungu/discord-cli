@@ -162,7 +162,8 @@ def channel_to_dict(
         )
     if detailed and hasattr(channel, "overwrites"):
         data["overwrites"] = [
-            overwrite_to_dict(target, overwrite) for target, overwrite in channel.overwrites.items()
+            overwrite_to_dict(target, overwrite)
+            for target, overwrite in channel.overwrites.items()  # type: ignore[arg-type]
         ]
     return data
 
@@ -207,7 +208,7 @@ def invite_to_dict(invite: discord.Invite) -> dict[str, Any]:
         "code": invite.code,
         "url": invite.url,
         "channel_id": invite.channel.id if invite.channel else None,
-        "channel_name": invite.channel.name if invite.channel else None,
+        "channel_name": invite.channel.name if invite.channel else None,  # type: ignore[union-attr]
         "inviter": {"id": invite.inviter.id, "name": str(invite.inviter)}
         if invite.inviter
         else None,
