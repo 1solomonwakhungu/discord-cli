@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "plugin-hello"
+version = "0.1.0"
+description = "Example discord-cli plugin that registers a hello command group"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = ["discordcli-agents>=1.0.0", "click>=8.0"]
+
+[project.entry-points."discord_cli.plugins"]
+hello = "plugin_hello:register"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/plugin_hello"]
