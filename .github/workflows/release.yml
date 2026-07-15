@@ -79,9 +79,6 @@ jobs:
           else
             echo "released=false" >> $GITHUB_OUTPUT
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build distribution
         if: steps.semantic_release.outputs.released == 'true'
         run: python -m build
