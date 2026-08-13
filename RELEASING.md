@@ -104,3 +104,13 @@ https://pypi.org/manage/project/discordcli-agents/settings/publishing/
 - Repository: `discord-cli`
 - Workflow filename: `release.yml`
 - Environment: `pypi`
+
+## Homebrew
+
+The Homebrew formula is maintained in
+[1solomonwakhungu/homebrew-tap](https://github.com/1solomonwakhungu/homebrew-tap).
+After a new version is available on PyPI, manually run the tap repository's
+**Update Formula** workflow. It checks PyPI, regenerates the formula and its
+Python resources, and opens a pull request when an update is available.
+
+Merge the formula update only after the tap's macOS and Linux checks pass.
