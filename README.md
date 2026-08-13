@@ -56,8 +56,12 @@ The PyPI package is named `discordcli-agents`; the installed command remains `di
 ### Homebrew
 
 ```bash
-brew install ./packaging/homebrew/discordcli-agents.rb
+brew install 1solomonwakhungu/tap/discordcli-agents
 ```
+
+The formula is maintained in the
+[Homebrew tap](https://github.com/1solomonwakhungu/homebrew-tap) and installs
+the `discord-cli` command.
 
 ### Scoop (Windows)
 
