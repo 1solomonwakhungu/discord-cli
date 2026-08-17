@@ -52,6 +52,7 @@ jobs:
       - name: Install project and development dependencies
         run: pip install -e ".[dev]"
       - name: Run tests or smoke test with coverage enforcement
+        id: run-tests
         shell: bash
         run: |
           if [ -d tests ] && find tests -name 'test_*.py' -print -quit | grep -q .; then
@@ -60,6 +61,21 @@ jobs:
           else
             python -c "import discord_cli; print(discord_cli.__version__)"
           fi
+      - name: Prepare coverage artifact
+        shell: bash
+        run: |
+          # Move coverage.xml to a named artifact per matrix axis if present
+          if [ -f coverage.xml ]; then
+            mv coverage.xml coverage-${{ matrix.os }}.xml
+            ls -la coverage-${{ matrix.os }}.xml || true
+          else
+            echo "No coverage.xml found (skipping artifact upload)"
+          fi
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.os }}
+          path: coverage-${{ matrix.os }}.xml
   build:
     runs-on: ubuntu-latest
     steps:
@@ -82,11 +98,22 @@ jobs:
     needs: [test]
     steps:
       - uses: actions/checkout@v7
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v3
         with:
-          files: coverage.xml
-          fail_ci_if_error: true
+          # download all coverage artifacts produced by matrix test jobs
+          path: ./coverage_reports
+      - name: List downloaded artifacts
+        shell: bash
+        run: |
+          echo "Contents of coverage_reports:" && ls -la coverage_reports || true
+      - name: Upload coverage to Codecov (non-blocking)
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
+        with:
+          files: './coverage_reports/**/*.xml'
+          # don't fail the CI solely because Codecov could not be contacted or token missing
+          fail_ci_if_error: false
 
   ci:
     name: ci
