@@ -21,9 +21,13 @@ Secrets and token handling
 - In CI, use the repository Secrets store (Settings → Secrets) or GitHub Environments for runtime secrets. Do not hardcode secrets in workflows.
 
 Destructive operations and dry-run modes
-- Commands that delete, ban, prune, or otherwise mutate server state must offer a dry-run or `--yes` confirmation flag.
+- Commands that delete, ban, prune, or otherwise mutate server state must offer a dry-run or `--yes` confirmation flag where feasible.
 - Tests and automation should default to non-destructive behavior and require explicit flags to execute destructive actions.
 - Document any destructive commands in the CLI docs and recipes with examples using dry-run first.
+
+Current status (as of this PR)
+- Some existing commands may not yet implement a dry-run mode. Operators should assume that certain delete/ban/prune commands will perform destructive actions unless the command documents an explicit dry-run. Keep an isolated non-production environment for verification before running bulk operations.
+- Recommended follow-up: maintainers should add dry-run/confirmation flags to destructive command handlers and include unit tests validating safe behavior. This PR documents the intended safe practice but does not automatically retrofit every command.
 
 Secret rotation and incident response
 - Rotate a compromised token immediately in the Discord Developer Portal and revoke any OAuth grants.
