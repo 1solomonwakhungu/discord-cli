@@ -5,7 +5,9 @@ discord-cli is a headless, scriptable Discord CLI for automation and AI-agent wo
 [![PyPI version](https://img.shields.io/pypi/v/discordcli-agents.svg)](https://pypi.org/project/discordcli-agents/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Coverage](https://codecov.io/gh/1solomonwakhungu/discord-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/1solomonwakhungu/discord-cli)
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
+[![Security](https://img.shields.io/badge/security-policy-reviewed-brightgreen.svg)](SECURITY.md)
 
 Current release: [1.2.1](https://github.com/1solomonwakhungu/discord-cli/releases/tag/v1.2.1)
 
