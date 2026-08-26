@@ -31,7 +31,23 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pytest-cov>=4.0", "pytest-mock>=3.0", "ruff>=0.4", "mypy>=1.0", "build>=1.0", "python-semantic-release>=8.0", "pre-commit>=3.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.0",
+    "ruff>=0.4",
+    "mypy>=1.0",
+    "build>=1.0",
+    "python-semantic-release>=8.0",
+    # GitPython 3.1.60 removed `git.Actor.name_email_regex`, which
+    # python-semantic-release (10.6.1, latest) still calls when it validates the
+    # commit author. Without this cap `semantic_release version` aborts with
+    # "type object 'Actor' has no attribute 'name_email_regex'". Drop the cap
+    # once a python-semantic-release release stops using that attribute.
+    "gitpython<3.1.60",
+    "pre-commit>=3.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/1solomonwakhungu/discord-cli"
