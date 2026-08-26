@@ -26,8 +26,31 @@ from discord_cli.registry import registry
 
 @click.group()
 @click.version_option(version=__version__, prog_name="discord-cli")
-def main() -> None:
+@click.option(
+    "--token",
+    default=None,
+    envvar="DISCORD_BOT_TOKEN",
+    help="Discord bot token. Overrides DISCORD_BOT_TOKEN and .env.",
+)
+@click.option(
+    "--guild",
+    "guild_id",
+    type=int,
+    default=None,
+    envvar="DISCORD_GUILD_ID",
+    help="Target guild ID. Required when the bot is in more than one guild.",
+)
+@click.option(
+    "--human",
+    is_flag=True,
+    default=False,
+    help="Render human-readable tables instead of the default JSON output.",
+)
+@click.pass_context
+def main(ctx: click.Context, token: str | None, guild_id: int | None, human: bool) -> None:
     """Command-line tool for managing Discord servers and automating Discord via AI agents."""
+    ctx.ensure_object(dict)
+    ctx.obj.update({"token": token, "guild_id": guild_id, "human": human})
 
 
 # Attach command groups registered by imported command modules.
