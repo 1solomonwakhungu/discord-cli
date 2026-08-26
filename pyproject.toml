@@ -110,10 +110,23 @@ exclude_lines = [
 ]
 
 [tool.semantic_release]
-version_variables = ["src/discord_cli/__init__.py:__version__"]
+# Every file carrying a version string must be listed here so the release
+# commit (and therefore the tag) is internally consistent. semantic-release
+# rewrites these before it commits and tags.
+version_variables = [
+    "src/discord_cli/__init__.py:__version__",
+    "README.md:Current release",
+    "commands.json:version",
+    "packaging/npm/package.json:version",
+    "CITATION.cff:version",
+]
+# The man page embeds __version__ but is generated, not substituted, so it is
+# re-rendered by build_command below and staged via assets. Without this the
+# tag would point at a tree still holding the previous version's man page.
+assets = ["docs/man/discord-cli.1"]
 commit_parser = "angular"
 changelog_file = "CHANGELOG.md"
-build_command = "python -m build"
+build_command = "python -m discord_cli.manpage > docs/man/discord-cli.1 && python -m build"
 tag_format = "v{version}"
 commit_author = "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
 commit_message = "chore(release): {version}\n\nAutomated release via python-semantic-release"
