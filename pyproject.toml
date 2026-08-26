@@ -49,6 +49,11 @@ path = "src/discord_cli/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/discord_cli"]
 
+# Installs the man page to <prefix>/share/man/man1 so `man discord-cli` works
+# after a pip or pipx install.
+[tool.hatch.build.targets.wheel.shared-data]
+"docs/man/discord-cli.1" = "share/man/man1/discord-cli.1"
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"
