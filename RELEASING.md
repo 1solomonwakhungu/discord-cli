@@ -27,6 +27,11 @@ The release workflow (`.github/workflows/release.yml`) triggers after a pull req
 7. **Build**: Source and wheel distributions are built.
 8. **PyPI publish**: The package is published to PyPI via OIDC Trusted Publishing in the `pypi` GitHub environment (no API token needed).
 9. **GitHub Release**: A release is created with the changelog as notes and distribution artifacts attached.
+10. **Scoop manifest**: `scripts/update_scoop_manifest.py` rewrites `packaging/scoop/discordcli-agents.json`
+    with the new version, wheel URL and the sha256 read back from the PyPI API, then pushes it to
+    `main` as a `chore(scoop):` commit. This runs *after* the publish because the digest does not
+    exist until the upload lands, so the manifest is intentionally not part of the release tag.
+    `chore` is non-releasing, so the push cannot retrigger this workflow. Do not edit the manifest by hand.
 
 ### Conventional Commits
 

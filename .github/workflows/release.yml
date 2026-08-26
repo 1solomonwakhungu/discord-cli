@@ -99,6 +99,30 @@ jobs:
             --notes-file CHANGELOG.md \
             dist/*.whl dist/*.tar.gz
 
+      # The Scoop manifest pins a wheel URL and its sha256, neither of which
+      # exists until PyPI has accepted the upload, so it cannot be part of the
+      # release commit the way the other version-bearing files are. It is
+      # refreshed here instead and pushed back to main as a chore(), which the
+      # commit parser maps to no release and therefore cannot loop.
+      - name: Update the Scoop manifest from PyPI
+        if: steps.semantic_release.outputs.released == 'true'
+        run: |
+          python scripts/update_scoop_manifest.py \
+            --version "${{ steps.semantic_release.outputs.version }}"
+
+      - name: Commit the refreshed Scoop manifest
+        if: steps.semantic_release.outputs.released == 'true'
+        run: |
+          if git diff --quiet -- packaging/scoop/discordcli-agents.json; then
+            echo "Scoop manifest already current; nothing to commit."
+            exit 0
+          fi
+          git add packaging/scoop/discordcli-agents.json
+          git commit -m "chore(scoop): update manifest to ${{ steps.semantic_release.outputs.version }}"
+          # Push by explicit refspec so this works whether or not the checkout
+          # and semantic-release left HEAD attached to a local main.
+          git push origin HEAD:main
+
   publish-existing-version:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -131,3 +155,40 @@ jobs:
               --title "v${{ inputs.version }}" \
               --generate-notes \
               dist/*.whl dist/*.tar.gz
+
+      # This job is checked out detached at the tag, so the manifest update has
+      # to happen against a separate, writable checkout of main. Without it a
+      # dispatch-triggered publish would leave the manifest behind.
+      - name: Check out main to update the Scoop manifest
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: main-checkout
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+      - name: Update and commit the Scoop manifest
+        working-directory: main-checkout
+        run: |
+          # Exit 3 means the dispatch re-published a version older than the one
+          # the manifest already pins. That is a legitimate thing to do, so leave
+          # the manifest pointing at the newer release rather than failing.
+          set +e
+          python scripts/update_scoop_manifest.py --version "${{ inputs.version }}"
+          status=$?
+          set -e
+          if [ "$status" -eq 3 ]; then
+            echo "Requested version predates the pinned one; leaving the manifest alone."
+            exit 0
+          fi
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if git diff --quiet -- packaging/scoop/discordcli-agents.json; then
+            echo "Scoop manifest already current; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packaging/scoop/discordcli-agents.json
+          git commit -m "chore(scoop): update manifest to ${{ inputs.version }}"
+          git push origin HEAD:main
