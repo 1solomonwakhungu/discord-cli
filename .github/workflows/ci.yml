@@ -34,8 +34,30 @@ jobs:
           mypy
           src/discord_cli/config.py
           src/discord_cli/errors.py
+          src/discord_cli/manpage.py
           src/discord_cli/output.py
           src/discord_cli/registry.py
+
+  manpage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: pip install -e .
+      - name: Verify the committed man page is up to date
+        run: |
+          python -m discord_cli.manpage > /tmp/discord-cli.1
+          diff -u docs/man/discord-cli.1 /tmp/discord-cli.1 || {
+            echo "::error::docs/man/discord-cli.1 is stale. Regenerate it with: python -m discord_cli.manpage > docs/man/discord-cli.1"
+            exit 1
+          }
+      - name: Install mandoc
+        run: sudo apt-get update && sudo apt-get install -y mandoc
+      - name: Lint the man page roff source
+        run: mandoc -T lint -W warning docs/man/discord-cli.1
 
   test:
     runs-on: ${{ matrix.os }}
@@ -118,13 +140,14 @@ jobs:
   ci:
     name: ci
     if: always()
-    needs: [lint, typecheck, test, build, coverage-report]
+    needs: [lint, typecheck, manpage, test, build, coverage-report]
     runs-on: ubuntu-latest
     steps:
       - name: Require every CI job to succeed
         run: |
           test "${{ needs.lint.result }}" = success
           test "${{ needs.typecheck.result }}" = success
+          test "${{ needs.manpage.result }}" = success
           test "${{ needs.test.result }}" = success
           test "${{ needs.build.result }}" = success
           test "${{ needs.coverage-report.result }}" = success

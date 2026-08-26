@@ -26,6 +26,29 @@ If the repository has no tests for your change yet, run the import smoke test:
 python -c "import discord_cli; print(discord_cli.__version__)"
 ```
 
+## The man page
+
+`docs/man/discord-cli.1` is generated from the live Click command tree by
+`src/discord_cli/manpage.py`, so it can never drift from the real CLI. Do not
+edit the `.1` file by hand.
+
+Whenever you add, rename, or remove a command, argument, or option, regenerate
+it and commit the result along with your change:
+
+```bash
+python -m discord_cli.manpage > docs/man/discord-cli.1
+```
+
+CI fails if the committed page differs from a fresh render. To preview it:
+
+```bash
+man ./docs/man/discord-cli.1
+```
+
+Prose that is not derived from the command tree — the description, examples,
+environment variables, and exit statuses — lives in constants at the top of
+`src/discord_cli/manpage.py`.
+
 ## Pre-commit hooks
 
 This project uses [pre-commit](https://pre-commit.dev/) to enforce code quality

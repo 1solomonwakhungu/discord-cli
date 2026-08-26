@@ -25,6 +25,20 @@ npx discordcli-agents
 
 The installed command is `discord-cli`.
 
+A man page ships with the package, so after a `pip` or `pipx` install you can read
+the full reference offline:
+
+```bash
+man discord-cli
+```
+
+If your shell cannot find it (some virtualenv layouts are not on the default
+`MANPATH`), point `man` at the file directly:
+
+```bash
+man "$(python -c 'import sysconfig; print(sysconfig.get_path("data"))')/share/man/man1/discord-cli.1"
+```
+
 ## Quick setup
 
 1. Create a bot at the [Discord Developer Portal](https://discord.com/developers/applications)
@@ -84,6 +98,7 @@ Need a deeper AI-agent workflow guide? See [docs/ai-agents.md](docs/ai-agents.md
 
 ## Documentation
 
+- `man discord-cli` — the complete command reference, also readable in the repo at [docs/man/discord-cli.1](docs/man/discord-cli.1)
 - [Recipes](docs/recipes.md)
 - [AI agent integration](docs/ai-agents.md)
 - [Plugin guide](docs/plugins.md)
