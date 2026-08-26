@@ -20,3 +20,8 @@ Why: There is no public `scoop` bucket maintained by this project in this reposi
 Notes:
 - This manifest references PyPI wheel files; it is provided as a convenience for packagers and for manual/local installs only.
 - If you maintain a public Scoop bucket and want this package added, either open an issue in this repository or create a PR in your bucket pointing to this manifest. The project does not publish a public Scoop bucket by default.
+
+How the manifest stays current:
+- The `version`, `url` and `hash` fields are rewritten automatically by the Release workflow, which runs `scripts/update_scoop_manifest.py` after the wheel reaches PyPI and reads the published sha256 back out of the PyPI API. The result is pushed to `main` as a separate `chore(scoop):` commit, so the manifest lands shortly *after* the release tag rather than inside it — the digest does not exist until the upload succeeds.
+- The `checkver` and `autoupdate` blocks are only consulted by Scoop's bucket-maintainer tooling (`scoop update`, the excavator bot) running against a real bucket. Because this repository is not a bucket, nothing here ever executes them, which is precisely why the workflow step above exists.
+- `tests/test_packaging.py` guards the manifest's internal consistency: that `url` matches `version`, that `hash` looks like a sha256, and that the installer script derives the wheel name from `${version}` instead of hardcoding it.
