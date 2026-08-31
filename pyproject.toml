@@ -45,7 +45,7 @@ dev = [
     # commit author. Without this cap `semantic_release version` aborts with
     # "type object 'Actor' has no attribute 'name_email_regex'". Drop the cap
     # once a python-semantic-release release stops using that attribute.
-    "gitpython<3.1.60",
+    "gitpython<3.1.62",
     "pre-commit>=3.0",
 ]
 
