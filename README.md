@@ -6,6 +6,7 @@ discord-cli is a headless, scriptable Discord CLI for automation and AI-agent wo
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
+[![skills.sh](https://skills.sh/b/1solomonwakhungu/discord-cli)](https://skills.sh/1solomonwakhungu/discord-cli)
 
 Current release: 1.3.0 ([PyPI](https://pypi.org/project/discordcli-agents/))
 
@@ -16,6 +17,8 @@ Current release: 1.3.0 ([PyPI](https://pypi.org/project/discordcli-agents/))
 - Use JSON output for automation and `jq` for filtering without custom glue code
 
 ## Install
+
+### Command-line tool
 
 ```bash
 pip install discordcli-agents
@@ -38,6 +41,18 @@ If your shell cannot find it (some virtualenv layouts are not on the default
 ```bash
 man "$(python -c 'import sysconfig; print(sysconfig.get_path("data"))')/share/man/man1/discord-cli.1"
 ```
+
+### Agent skill
+
+Install the repository's `discord-cli` skill with the open skills CLI:
+
+```bash
+npx skills add 1solomonwakhungu/discord-cli --skill discord-cli
+```
+
+The skill is listed on
+[skills.sh](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli) and works with Codex,
+Claude Code, Cursor, GitHub Copilot, and other agents supported by the skills CLI.
 
 ## Quick setup
 
