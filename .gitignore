@@ -28,6 +28,7 @@ build/
 .ruff_cache/
 .coverage
 htmlcov/
+.firecrawl/
 
 # Editors
 .vscode/

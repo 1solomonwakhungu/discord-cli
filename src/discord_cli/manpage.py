@@ -179,7 +179,7 @@ def _first_sentence(text: str) -> str:
 
 def argument_placeholder(param: click.Argument) -> str:
     """Render a positional argument the way the synopsis should show it."""
-    name = param.metavar or param.name.upper()
+    name = param.metavar or (param.name or "VALUE").upper()
     if param.nargs == -1:
         return f"[{name}]..."
     if not param.required:
@@ -240,7 +240,8 @@ def option_description(param: click.Option) -> str:
         parts.append("Required.")
 
     if not parts:
-        parts.append(f"Set the {param.name.replace('_', ' ')} value.")
+        option_name = (param.name or "option").replace("_", " ")
+        parts.append(f"Set the {option_name} value.")
 
     return " ".join(parts)
 

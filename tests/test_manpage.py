@@ -7,7 +7,6 @@ from pathlib import Path
 
 import click
 import pytest
-
 from discord_cli import __version__, manpage
 from discord_cli.cli import main
 
@@ -151,9 +150,12 @@ class TestRendererUnits:
         required = click.Argument(["channel_id"], required=True)
         optional = click.Argument(["channel_id"], required=False)
         variadic = click.Argument(["ids"], nargs=-1)
+        unnamed = click.Argument(["value"])
+        unnamed.name = None
         assert manpage.argument_placeholder(required) == "CHANNEL_ID"
         assert manpage.argument_placeholder(optional) == "[CHANNEL_ID]"
         assert manpage.argument_placeholder(variadic) == "[IDS]..."
+        assert manpage.argument_placeholder(unnamed) == "VALUE"
 
     def test_option_names_render_flags_and_metavar(self):
         flag = click.Option(["--human"], is_flag=True)
@@ -177,6 +179,9 @@ class TestRendererUnits:
     def test_option_description_falls_back_when_no_help(self):
         option = click.Option(["--max_age"])
         assert manpage.option_description(option) == "Set the max age value."
+
+        option.name = None
+        assert manpage.option_description(option) == "Set the option value."
 
     def test_render_manpage_accepts_a_custom_program(self):
         @click.group(help="A tiny tool.")
@@ -233,5 +238,5 @@ class TestEntryPoint:
     def test_module_main_writes_the_page(self, capsys):
         manpage.main()
         captured = capsys.readouterr().out
-        assert captured.startswith(".\\\"")
+        assert captured.startswith('.\\"')
         assert ".SH NAME" in captured
