@@ -44,14 +44,14 @@ man "$(python -c 'import sysconfig; print(sysconfig.get_path("data"))')/share/ma
 
 ### Agent skill
 
-Install the repository's `discord-cli` skill with the open skills CLI:
+Install the repository's `discord-cli-server-management` skill with the open skills CLI:
 
 ```bash
-npx skills add 1solomonwakhungu/discord-cli --skill discord-cli
+npx skills add 1solomonwakhungu/discord-cli --skill discord-cli-server-management
 ```
 
 The skill is listed on
-[skills.sh](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli) and works with Codex,
+[skills.sh](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management) and works with Codex,
 Claude Code, Cursor, GitHub Copilot, and other agents supported by the skills CLI.
 
 ## Quick setup

@@ -31,7 +31,7 @@ And parse the JSON output to understand the result.
 
 ### Option 2: Add as a Skill
 
-Place `SKILL.md` in your project's `.claude/skills/` directory. Claude Code will automatically discover it and know when to use discord-cli.
+Place `SKILL.md` (from `skills/discord-cli-server-management/`) in your project's `.claude/skills/discord-cli-server-management/` directory. Claude Code will automatically discover it and know when to use discord-cli.
 
 ### Option 3: MCP Server (Advanced)
 
