@@ -1,0 +1,13 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Discord",
+      "description": "Skills for managing and automating Discord servers from AI agents and the terminal.",
+      "skills": [
+        "discord-cli-server-management"
+      ]
+    }
+  ]
+}
