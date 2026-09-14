@@ -1,10 +1,9 @@
 ---
-name: discord-cli
-description: "Command-line tool for managing Discord servers via AI agents. 50+ commands with JSON output for programmatic consumption."
-when_to_use: "When you need to manage Discord servers, channels, roles, members, messages, or any Discord operation from the terminal or via AI agent automation."
+name: discord-cli-server-management
+description: "Manages Discord servers from the terminal with 50+ JSON-output commands covering channels, categories, roles, members, messages, permissions, webhooks, invites, and threads. Use when you need to manage a Discord server or guild, create or delete channels, assign roles, ban or kick members, bulk-delete or purge messages, audit permissions, set up a Discord bot, automate Discord, or moderate a guild from an AI agent or shell script."
 ---
 
-# discord-cli: AI Agent Integration Guide
+# discord-cli-server-management: AI Agent Integration Guide
 
 ## Prerequisites
 
