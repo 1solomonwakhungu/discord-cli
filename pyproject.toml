@@ -40,12 +40,14 @@ dev = [
     "mypy>=1.0",
     "build>=1.0",
     "python-semantic-release>=8.0",
-    # GitPython 3.1.60 removed `git.Actor.name_email_regex`, which
-    # python-semantic-release (10.6.1, latest) still calls when it validates the
-    # commit author. Without this cap `semantic_release version` aborts with
-    # "type object 'Actor' has no attribute 'name_email_regex'". Drop the cap
-    # once a python-semantic-release release stops using that attribute.
-    "gitpython<3.1.60",
+    # python-semantic-release before 10.7.0 (still allowed by the floor above)
+    # validates the commit author with `git.Actor.name_email_regex`. GitPython
+    # 3.1.60 removed it, which made `semantic-release version` abort with
+    # "type object 'Actor' has no attribute 'name_email_regex'"; 3.1.61
+    # restored it as deprecated, and GitPython 4.0 will remove it.
+    # python-semantic-release 10.7.0 parses the author itself, so this pin can
+    # go once the floor above is raised to 10.7.0.
+    "gitpython>=3.1.61,<4",
     "pre-commit>=3.0",
 ]
 
