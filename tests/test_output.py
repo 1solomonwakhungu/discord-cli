@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import sys
 
-import pytest
-
 from discord_cli.output import make_payload, print_human, print_json, print_output
 
 
@@ -83,6 +81,81 @@ class TestPrintHuman:
         print_human(payload)
         captured = capsys.readouterr()
         assert "Admin" in captured.out
+
+    def test_bare_list_of_dicts_renders_table(self, capsys):
+        payload = {
+            "ok": True,
+            "data": [
+                {"code": "abc123", "channel": "general", "uses": 3},
+                {"code": "xyz789", "channel": "welcome", "uses": 0},
+            ],
+        }
+        print_human(payload)
+        captured = capsys.readouterr()
+        # Table borders confirm Rich table output rather than raw JSON
+        assert "┏" in captured.out
+        assert "code" in captured.out
+        assert "channel" in captured.out
+        assert "uses" in captured.out
+        assert "abc123" in captured.out
+        assert "general" in captured.out
+        assert "xyz789" in captured.out
+        assert "welcome" in captured.out
+
+    def test_bare_list_of_dicts_json_encodes_nested_values(self, capsys):
+        payload = {
+            "ok": True,
+            "data": [
+                {"id": 1, "meta": {"ok": True}, "tags": ["a", "b"]},
+            ],
+        }
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" in captured.out
+        assert '{"ok": true}' in captured.out
+        assert '["a", "b"]' in captured.out
+
+    def test_bare_list_of_dicts_truncates_to_eight_columns(self, capsys):
+        row = {f"c{i}": f"v{i}" for i in range(1, 11)}
+        payload = {"ok": True, "data": [row]}
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" in captured.out
+        for i in range(1, 9):
+            assert f"c{i}" in captured.out
+            assert f"v{i}" in captured.out
+        assert "c9" not in captured.out
+        assert "v9" not in captured.out
+        assert "c10" not in captured.out
+        assert "v10" not in captured.out
+
+    def test_empty_bare_list_falls_back_to_json(self, capsys):
+        payload = {"ok": True, "data": []}
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" not in captured.out
+        assert json.loads(captured.out) == []
+
+    def test_bare_list_of_scalars_falls_back_to_json(self, capsys):
+        payload = {"ok": True, "data": ["a", "b"]}
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" not in captured.out
+        assert json.loads(captured.out) == ["a", "b"]
+
+    def test_bare_mixed_list_falls_back_to_json(self, capsys):
+        payload = {"ok": True, "data": [{"id": 1}, "x"]}
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" not in captured.out
+        assert json.loads(captured.out) == [{"id": 1}, "x"]
+
+    def test_wrapped_mixed_list_falls_back_to_json(self, capsys):
+        payload = {"ok": True, "data": {"items": [{"id": 1}, "x"]}}
+        print_human(payload)
+        captured = capsys.readouterr()
+        assert "┏" not in captured.out
+        assert json.loads(captured.out) == {"items": [{"id": 1}, "x"]}
 
     def test_falls_back_to_json_when_rich_unavailable(self, monkeypatch, capsys):
         monkeypatch.setitem(sys.modules, "rich.console", None)
