@@ -51,7 +51,7 @@
         {"name": "list", "description": "List all members", "args": [], "options": []},
         {"name": "info", "description": "Detailed member info", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []},
         {"name": "kick", "description": "Kick a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}]},
-        {"name": "ban", "description": "Ban a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}, {"name": "--delete-message-days", "type": "int"}]},
+        {"name": "ban", "description": "Ban a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}, {"name": "--delete-message-days", "type": "int", "default": 0}]},
         {"name": "unban", "description": "Unban a user", "args": [{"name": "user_id", "type": "int", "required": true}], "options": []},
         {"name": "timeout", "description": "Timeout a member", "args": [{"name": "member_id", "type": "int", "required": true}, {"name": "duration", "required": true}], "options": [{"name": "--reason"}]},
         {"name": "untimeout", "description": "Remove timeout", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []},
@@ -79,9 +79,29 @@
       "commands": [
         {"name": "info", "description": "Server info", "args": [], "options": []},
         {"name": "edit", "description": "Edit server", "args": [], "options": [{"name": "--name"}, {"name": "--description"}]},
-        {"name": "emojis", "description": "Emoji management (subgroup)", "args": [], "options": [], "subcommands": ["list", "create", "delete"]},
-        {"name": "stickers", "description": "Sticker management (subgroup)", "args": [], "options": [], "subcommands": ["list"]},
-        {"name": "bans", "description": "Ban management (subgroup)", "args": [], "options": [], "subcommands": ["list"]},
+        {
+          "name": "emojis",
+          "description": "Manage custom emojis",
+          "subcommands": [
+            {"name": "list", "description": "List custom emojis", "args": [], "options": []},
+            {"name": "create", "description": "Create a custom emoji", "args": [{"name": "name", "required": true}], "options": [{"name": "--image", "required": true}]},
+            {"name": "delete", "description": "Delete a custom emoji", "args": [{"name": "emoji_id", "type": "int", "required": true}], "options": []}
+          ]
+        },
+        {
+          "name": "stickers",
+          "description": "Manage custom stickers",
+          "subcommands": [
+            {"name": "list", "description": "List custom stickers", "args": [], "options": []}
+          ]
+        },
+        {
+          "name": "bans",
+          "description": "Inspect guild bans",
+          "subcommands": [
+            {"name": "list", "description": "List banned users", "args": [], "options": []}
+          ]
+        },
         {"name": "regions", "description": "Available voice regions", "args": [], "options": []},
         {"name": "prune", "description": "Prune inactive members", "args": [], "options": [{"name": "--days", "type": "int", "required": true}, {"name": "--dry-run", "default": "true"}]}
       ]
@@ -106,11 +126,11 @@
       ]
     },
     {
-      "name": "invite",
+      "name": "invites",
       "description": "Manage server invites",
       "commands": [
         {"name": "list", "description": "List all invites", "args": [], "options": []},
-        {"name": "create", "description": "Create invite", "args": [], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--max-age", "type": "int"}, {"name": "--max-uses", "type": "int"}, {"name": "--temporary", "type": "flag"}]},
+        {"name": "create", "description": "Create invite", "args": [], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--max-age", "type": "int", "default": 0}, {"name": "--max-uses", "type": "int", "default": 0}, {"name": "--temporary", "type": "flag"}]},
         {"name": "delete", "description": "Delete invite", "args": [{"name": "code", "required": true}], "options": []}
       ]
     },
@@ -119,7 +139,7 @@
       "description": "Manage forum and thread channels",
       "commands": [
         {"name": "list", "description": "List threads", "args": [], "options": [{"name": "--channel-id", "type": "int"}]},
-        {"name": "create", "description": "Create thread", "args": [{"name": "name", "required": true}], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--type", "default": "public", "choices": ["public", "private"]}]},
+        {"name": "create", "description": "Create thread", "args": [{"name": "name", "required": true}], "options": [{"name": "--channel-id", "type": "int", "required": true}, {"name": "--type", "default": "public", "choices": ["public", "private"]}, {"name": "--auto-archive", "default": "1440", "choices": ["60", "1440", "4320", "10080"]}]},
         {"name": "delete", "description": "Delete thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
         {"name": "archive", "description": "Archive thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
         {"name": "unarchive", "description": "Unarchive thread", "args": [{"name": "thread_id", "type": "int", "required": true}], "options": []},
@@ -139,6 +159,13 @@
       "description": "Export message history",
       "commands": [
         {"name": "channel", "description": "Export messages from a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 100}, {"name": "--format", "default": "json", "choices": ["json", "csv"]}]}
+      ]
+    },
+    {
+      "name": "plugins",
+      "description": "Inspect third-party plugins discovered via the discord_cli.plugins entry-point group",
+      "commands": [
+        {"name": "list", "description": "List loaded plugins", "args": [], "options": []}
       ]
     }
   ]
