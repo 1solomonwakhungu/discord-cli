@@ -22,7 +22,7 @@ CI logs, or consumed by an AI agent without additional parsing glue. Pass
 instead.
 .PP
 Every command returns a payload with an \fBok\fR boolean. On success the
-payload carries a \fBresult\fR object; on failure it carries an \fBerror\fR
+payload carries a \fBdata\fR field; on failure it carries an \fBerror\fR
 object with a \fBtype\fR and \fBmessage\fR, and the process exits non\-zero.
 .SH GLOBAL OPTIONS
 These options are accepted by the top\-level command and apply to every
@@ -1193,7 +1193,7 @@ discord\-cli \-\-guild 123456789012345678 role list
 Export channel history and filter it with jq:
 .RS 4
 .nf
-discord\-cli export channel 123456789012345678 \-\-limit 500 | jq '.result'
+discord\-cli export channel 123456789012345678 \-\-limit 500 | jq '.data'
 .fi
 .RE
 .PP

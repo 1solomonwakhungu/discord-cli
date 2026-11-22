@@ -100,3 +100,35 @@ class TestGlobalOptions:
     def test_non_integer_guild_is_rejected(self, cli_runner):
         result = cli_runner.invoke(main, ["--guild", "not-a-number", "channel", "list"])
         assert result.exit_code != 0
+
+
+class TestCommandAliases:
+    def test_invite_alias_is_not_duplicated_in_main_commands(self):
+        assert "invites" in main.commands
+        assert "invite" not in main.commands
+
+    def test_invite_help_resolves_to_invites(self, cli_runner):
+        canonical = cli_runner.invoke(main, ["invites", "--help"])
+        aliased = cli_runner.invoke(main, ["invite", "--help"])
+        assert canonical.exit_code == 0
+        assert aliased.exit_code == 0
+        for subcommand in ("list", "create", "delete"):
+            assert subcommand in aliased.output
+
+    def test_invite_subcommands_resolve_to_invites_actions(self, cli_runner, captured_run_action):
+        from discord_cli.commands.invites import (
+            action_invite_create,
+            action_invite_delete,
+            action_invite_list,
+        )
+
+        cli_runner.invoke(main, ["invite", "list"], standalone_mode=False)
+        assert captured_run_action.call_args[0][0] is action_invite_list
+
+        cli_runner.invoke(main, ["invite", "create", "--channel-id", "123"], standalone_mode=False)
+        assert captured_run_action.call_args[0][0] is action_invite_create
+        assert captured_run_action.call_args[0][1]["channel_id"] == 123
+
+        cli_runner.invoke(main, ["invite", "delete", "abc123"], standalone_mode=False)
+        assert captured_run_action.call_args[0][0] is action_invite_delete
+        assert captured_run_action.call_args[0][1]["code"] == "abc123"

@@ -1,8 +1,9 @@
 # discord-cli
 
-discord-cli is a headless, scriptable Discord CLI for automation and AI-agent workflows. It connects with a Discord bot token, runs a single command, and exits; command output is JSON by default so you can pipe it into `jq`, save it in CI logs, or call it from shell scripts and local agents.
+**Headless, JSON-first Discord CLI for AI agents, shell scripts, cron jobs, and CI/CD.**
 
 [![PyPI version](https://img.shields.io/pypi/v/discordcli-agents.svg)](https://pypi.org/project/discordcli-agents/)
+[![PyPI Downloads](https://static.pepy.tech/badge/discordcli-agents/month)](https://pepy.tech/projects/discordcli-agents)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
@@ -10,115 +11,210 @@ discord-cli is a headless, scriptable Discord CLI for automation and AI-agent wo
 
 Current release: 1.4.0 ([PyPI](https://pypi.org/project/discordcli-agents/))
 
-## Why discord-cli?
+> **63 commands across 13 groups** — manage channels, categories, roles, permissions, members, messages, threads, webhooks, invites, search, and JSON/CSV exports from one command-line binary. No long-running bot daemon. No MCP tool-schema context bloat.
 
-- Script Discord operations from shell, cron, GitHub Actions, or an AI agent
-- Keep the bot token and workflow logic outside a long-running service process
-- Use JSON output for automation and `jq` for filtering without custom glue code
+---
+
+## Why `discord-cli`?
+
+- **Built for AI coding agents without MCP overhead** — ships with a prompt-injection-hardened [`skills.sh`](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management) skill for Claude Code, Codex, Cursor, and GitHub Copilot. Load instructions on demand instead of injecting dozens of tool schemas into every turn.
+- **JSON-first by default, human tables on demand** — every command returns `{"ok": true, "data": ...}` (or `{"ok": false, "error": {...}}` with exit code `1`) for clean `jq` pipelines and agent parsing. Add `--human` for Rich terminal tables.
+- **Headless & fire-and-exit** — authenticates with a Discord bot token, executes one command, prints the payload, and exits. Drop it straight into GitHub Actions, cron jobs, or shell scripts.
+- **Extensible & offline-documented** — add custom command groups via Python entry-point plugins (`discord_cli.plugins`), and read the full auto-generated reference offline with `man discord-cli`.
+
+### Example output
+
+```bash
+$ discord-cli guild info
+```
+
+```json
+{
+  "ok": true,
+  "data": {
+    "id": 123456789012345678,
+    "name": "Engineering HQ",
+    "member_count": 42,
+    "channel_count": 18,
+    "role_count": 9,
+    "verification_level": "medium"
+  }
+}
+```
+
+Pipe directly into `jq`:
+
+```bash
+# Find the ID of #announcements and post a release message
+CHANNEL_ID=$(discord-cli channel list | jq -r '.data.channels[] | select(.name == "announcements") | .id')
+discord-cli message send "$CHANNEL_ID" --content "v1.4.0 deployed to production"
+```
+
+---
 
 ## Install
 
-### Command-line tool
+> **Package vs. command name:** The PyPI distribution is **`discordcli-agents`**; the installed executable is **`discord-cli`**.
+
+### Recommended (isolated CLI install)
 
 ```bash
+# Using uv (fastest)
+uv tool install discordcli-agents
+
+# Or using pipx
+pipx install discordcli-agents
+
+# Or standard pip
 pip install discordcli-agents
-# or
-npx discordcli-agents
 ```
 
-The installed command is `discord-cli`.
+### Homebrew (macOS / Linux)
 
-A man page ships with the package, so after a `pip` or `pipx` install you can read
-the full reference offline:
+```bash
+brew install 1solomonwakhungu/tap/discordcli-agents
+```
+
+### Windows (Scoop manual manifest)
+
+A CI-synced Scoop manifest is provided in [`packaging/scoop/`](packaging/scoop/README.md) for local/manual installs.
+
+### Offline manual page
+
+A man page ships with the Python package:
 
 ```bash
 man discord-cli
 ```
 
-If your shell cannot find it (some virtualenv layouts are not on the default
-`MANPATH`), point `man` at the file directly:
+If your virtualenv prefix is not on `MANPATH`:
 
 ```bash
 man "$(python -c 'import sysconfig; print(sysconfig.get_path("data"))')/share/man/man1/discord-cli.1"
 ```
 
-### Agent skill
+---
 
-Install the repository's `discord-cli-server-management` skill with the open skills CLI:
+## Use with AI Agents (Claude Code, Codex, Cursor, Copilot)
+
+Install the bundled **`discord-cli-server-management`** skill via the open [skills CLI](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management):
 
 ```bash
 npx skills add 1solomonwakhungu/discord-cli --skill discord-cli-server-management
 ```
 
-The skill is listed on
-[skills.sh](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management) and works with Codex,
-Claude Code, Cursor, GitHub Copilot, and other agents supported by the skills CLI.
+Once installed (with `DISCORD_BOT_TOKEN` in your environment or `.env`), ask your agent things like:
+- *"Audit channel permission overwrites across the server and flag anything open to `@everyone`."*
+- *"Create a `Releases` category with `#changelog` and `#alerts` channels, and post today's release notes."*
+- *"Export the last 500 messages from `#support` to JSON and summarize recurring user issues."*
 
-## Quick setup
+The published skill includes explicit prompt-injection guardrails instructing agents to treat retrieved Discord messages, usernames, topics, and embeds as untrusted data. See [docs/ai-agents.md](docs/ai-agents.md) for full integration patterns.
 
-1. Create a bot at the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Add it to your server with the permissions you need
-3. Export a token:
+---
+
+## Quick setup (2 minutes)
+
+1. Create an application and bot in the [Discord Developer Portal](https://discord.com/developers/applications) and copy the **Bot Token**.
+2. Under **Bot → Privileged Gateway Intents**, enable **Server Members Intent** and **Message Content Intent** if you use member listing/search or message search/export. *(Non-privileged commands automatically fall back if privileged intents are disabled.)*
+3. Invite the bot to your server with the permissions your workflows need.
+4. Provide your token via environment variable or a local `.env` file:
 
 ```bash
 export DISCORD_BOT_TOKEN="your-bot-token-here"
+# Optional: default server when the bot is in multiple guilds
+export DISCORD_GUILD_ID="123456789012345678"
 ```
 
-Or create a `.env` file in the same directory:
+Verify connectivity:
 
 ```bash
-echo 'DISCORD_BOT_TOKEN=your-bot-token-here' > .env
+discord-cli --human guild info
 ```
+
+---
 
 ## Quick start
 
 ```bash
-# Server info
+# Inspect server & channels (JSON by default; pass --human before the subcommand for Rich tables)
 discord-cli guild info
+discord-cli --human channel list
 
-# List channels
-discord-cli channel list
+# Create a category and a channel inside it
+CAT_ID=$(discord-cli category create "Releases" | jq -r '.data.created.id')
+discord-cli channel create "announcements" --type text --category "$CAT_ID" --topic "Release updates"
 
-# Create a channel
-discord-cli channel create "announcements" --type text --topic "Server announcements"
+# Send a plain or embed message
+discord-cli message send 123456789012345678 --content "Deploy finished!"
+discord-cli message send 123456789012345678 --embed-json '{"title":"Release v1.4.0","color":5763719}'
 
-# Send a message
-discord-cli message send 123456789012345678 --content "Hello from the CLI!"
+# Search messages or members (positional query)
+discord-cli search messages "deployment" --channel-id 123456789012345678 --limit 25
+discord-cli search members "alice"
 
-# Export channel history
+# Export channel history to JSON or extract CSV
 discord-cli export channel 123456789012345678 --limit 500 --format json > history.json
+discord-cli export channel 123456789012345678 --limit 500 --format csv | jq -r '.data.data' > history.csv
+
+# Create a role and assign channel permission overwrites
+ROLE_ID=$(discord-cli role create "Ops" --color "#3498db" --mentionable --hoist | jq -r '.data.created.id')
+discord-cli permissions set --channel 123456789012345678 --role "$ROLE_ID" --allow "view_channel,send_messages"
+
+# Preview inactive member pruning safely (dry-run defaults to true)
+discord-cli guild prune --days 30
 ```
 
-## Recipes
+---
 
-Use the ready-to-copy examples in [docs/recipes.md](docs/recipes.md) for:
+## Command reference (63 commands, 13 groups)
 
-- GitHub Actions notifications
-- Scheduled maintenance and status checks
-- Server/channel export and backup
-- Bulk role and permission changes
-- Claude/Codex and generic terminal-agent workflows
+Global options (placed **before** the command group): `--token TEXT`, `--guild INTEGER`, `--human`, `--version`.
 
-Need a deeper AI-agent workflow guide? See [docs/ai-agents.md](docs/ai-agents.md).
+| Group | Commands | What it covers |
+|---|---|---|
+| `channel` | `list`, `create`, `delete`, `edit`, `move`, `info` | Text, voice, stage, and forum channels |
+| `category` | `list`, `create`, `delete`, `edit` | Channel category organization |
+| `role` | `list`, `create`, `delete`, `edit`, `assign`, `remove`, `info` | Server roles, colors, permissions, assignments |
+| `member` | `list`, `info`, `kick`, `ban`, `unban`, `timeout`, `untimeout`, `nickname`, `roles` | Member lookup and moderation |
+| `message` | `send`, `edit`, `delete`, `purge`, `fetch`, `pin`, `unpin`, `react` | Messaging, embeds, reactions, bulk purge |
+| `guild` | `info`, `edit`, `emojis {list,create,delete}`, `stickers list`, `bans list`, `regions`, `prune` | Server profile, emojis, stickers, bans, pruning |
+| `permissions` | `list`, `set`, `reset` | Per-channel role/member permission overwrites |
+| `webhook` | `list`, `create`, `delete`, `info` | Channel webhook management |
+| `invites` | `list`, `create`, `delete` | Server invite links with max-age/max-uses/temporary |
+| `threads` | `list`, `create`, `delete`, `archive`, `unarchive`, `members` | Public/private threads and thread membership |
+| `search` | `messages`, `members` | Substring search across channel history or members |
+| `export` | `channel` | Export channel history as JSON or CSV |
+| `plugins` | `list` | Inspect loaded third-party `discord_cli.plugins` |
 
-## Command groups
+---
 
-- `channel` — channel management and inspection
-- `message` — send, edit, react, purge, and fetch messages
-- `guild` — guild profile, emojis, stickers, bans, and prune flows
-- `member` — list, info, kick, ban, timeout, nickname, and role checks
-- `role` — create, edit, assign, remove, and inspect roles
-- `permissions` — per-channel permission overwrites
-- `webhook`, `threads`, `invite`, `category`, `search`, and `export` — the rest of the automation surface
+## Recipes & Automation
+
+Copy-paste workflows in **[docs/recipes.md](docs/recipes.md)**:
+
+- **GitHub Actions** deployment & release notifications
+- **Cron** nightly server snapshots and channel exports
+- **Bulk role & permission** provisioning scripts
+- **Claude Code / Codex** terminal-agent shell and Python wrappers
+
+---
+
+## Extending with Plugins
+
+Third-party Python packages can register new top-level command groups via the `discord_cli.plugins` entry-point group. Broken plugins log a warning and never crash built-in commands. See **[docs/plugins.md](docs/plugins.md)** and [`examples/plugin-hello/`](examples/plugin-hello/).
+
+---
 
 ## Documentation
 
-- `man discord-cli` — the complete command reference, also readable in the repo at [docs/man/discord-cli.1](docs/man/discord-cli.1)
-- [Recipes](docs/recipes.md)
-- [AI agent integration](docs/ai-agents.md)
-- [Plugin guide](docs/plugins.md)
-- [Contributing guide](CONTRIBUTING.md)
+- `man discord-cli` — complete auto-generated CLI reference ([docs/man/discord-cli.1](docs/man/discord-cli.1))
+- [Practical recipes](docs/recipes.md)
+- [AI agent integration guide](docs/ai-agents.md)
+- [Plugin development guide](docs/plugins.md)
+- [Contributing guide](CONTRIBUTING.md) · [Security policy](SECURITY.md)
+
+---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE).
