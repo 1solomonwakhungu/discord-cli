@@ -9,7 +9,7 @@
 [![CI](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/1solomonwakhungu/discord-cli/actions/workflows/ci.yml)
 [![skills.sh](https://skills.sh/b/1solomonwakhungu/discord-cli)](https://skills.sh/1solomonwakhungu/discord-cli)
 
-Current release: 1.4.1 ([PyPI](https://pypi.org/project/discordcli-agents/))
+Current release: 1.5.0 ([PyPI](https://pypi.org/project/discordcli-agents/))
 
 > **64 commands across 13 groups** — manage channels, categories, roles, permissions, members, messages, threads, webhooks, invites, search, and JSON/CSV exports from one command-line binary. No long-running bot daemon. No MCP tool-schema context bloat.
 
