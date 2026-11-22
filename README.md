@@ -11,7 +11,7 @@
 
 Current release: 1.4.1 ([PyPI](https://pypi.org/project/discordcli-agents/))
 
-> **63 commands across 13 groups** — manage channels, categories, roles, permissions, members, messages, threads, webhooks, invites, search, and JSON/CSV exports from one command-line binary. No long-running bot daemon. No MCP tool-schema context bloat.
+> **64 commands across 13 groups** — manage channels, categories, roles, permissions, members, messages, threads, webhooks, invites, search, and JSON/CSV exports from one command-line binary. No long-running bot daemon. No MCP tool-schema context bloat.
 
 ---
 
@@ -166,7 +166,7 @@ discord-cli guild prune --days 30
 
 ---
 
-## Command reference (63 commands, 13 groups)
+## Command reference (64 commands, 13 groups)
 
 Global options (placed **before** the command group): `--token TEXT`, `--guild INTEGER`, `--human`, `--version`.
 
@@ -176,7 +176,7 @@ Global options (placed **before** the command group): `--token TEXT`, `--guild I
 | `category` | `list`, `create`, `delete`, `edit` | Channel category organization |
 | `role` | `list`, `create`, `delete`, `edit`, `assign`, `remove`, `info` | Server roles, colors, permissions, assignments |
 | `member` | `list`, `info`, `kick`, `ban`, `unban`, `timeout`, `untimeout`, `nickname`, `roles` | Member lookup and moderation |
-| `message` | `send`, `edit`, `delete`, `purge`, `fetch`, `pin`, `unpin`, `react` | Messaging, embeds, reactions, bulk purge |
+| `message` | `list`, `send`, `edit`, `delete`, `purge`, `fetch`, `pin`, `unpin`, `react` | Messaging, embeds, reactions, bulk purge |
 | `guild` | `info`, `edit`, `emojis {list,create,delete}`, `stickers list`, `bans list`, `regions`, `prune` | Server profile, emojis, stickers, bans, pruning |
 | `permissions` | `list`, `set`, `reset` | Per-channel role/member permission overwrites |
 | `webhook` | `list`, `create`, `delete`, `info` | Channel webhook management |
