@@ -36,7 +36,7 @@ DESCRIPTION_PARAGRAPHS = [
     "CI logs, or consumed by an AI agent without additional parsing glue. Pass "
     "\\fB--human\\fR to render Rich-formatted tables for interactive use instead.",
     "Every command returns a payload with an \\fBok\\fR boolean. On success the "
-    "payload carries a \\fBresult\\fR object; on failure it carries an \\fBerror\\fR "
+    "payload carries a \\fBdata\\fR field; on failure it carries an \\fBerror\\fR "
     "object with a \\fBtype\\fR and \\fBmessage\\fR, and the process exits non-zero.",
 ]
 
@@ -94,7 +94,7 @@ EXAMPLES = [
     ),
     (
         "Export channel history and filter it with jq:",
-        "discord-cli export channel 123456789012345678 --limit 500 | jq '.result'",
+        "discord-cli export channel 123456789012345678 --limit 500 | jq '.data'",
     ),
     (
         "Supply the token explicitly instead of via the environment:",
