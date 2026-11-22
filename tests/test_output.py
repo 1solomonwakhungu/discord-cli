@@ -8,6 +8,15 @@ import sys
 from discord_cli.output import make_payload, print_human, print_json, print_output
 
 
+def _has_table_border(output: str) -> bool:
+    """Return True if output contains Rich table borders across platforms (heavy, light, or ASCII)."""
+    return (
+        ("┏" in output and "┃" in output)
+        or ("┌" in output and "│" in output)
+        or ("+-" in output and "|" in output)
+    )
+
+
 class TestMakePayload:
     def test_success_wraps_result(self):
         payload = make_payload(result={"id": 1})
@@ -93,7 +102,7 @@ class TestPrintHuman:
         print_human(payload)
         captured = capsys.readouterr()
         # Table borders confirm Rich table output rather than raw JSON
-        assert "┏" in captured.out
+        assert _has_table_border(captured.out)
         assert "code" in captured.out
         assert "channel" in captured.out
         assert "uses" in captured.out
@@ -111,7 +120,7 @@ class TestPrintHuman:
         }
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" in captured.out
+        assert _has_table_border(captured.out)
         assert '{"ok": true}' in captured.out
         assert '["a", "b"]' in captured.out
 
@@ -120,7 +129,7 @@ class TestPrintHuman:
         payload = {"ok": True, "data": [row]}
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" in captured.out
+        assert _has_table_border(captured.out)
         for i in range(1, 9):
             assert f"c{i}" in captured.out
             assert f"v{i}" in captured.out
@@ -133,28 +142,28 @@ class TestPrintHuman:
         payload = {"ok": True, "data": []}
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" not in captured.out
+        assert not _has_table_border(captured.out)
         assert json.loads(captured.out) == []
 
     def test_bare_list_of_scalars_falls_back_to_json(self, capsys):
         payload = {"ok": True, "data": ["a", "b"]}
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" not in captured.out
+        assert not _has_table_border(captured.out)
         assert json.loads(captured.out) == ["a", "b"]
 
     def test_bare_mixed_list_falls_back_to_json(self, capsys):
         payload = {"ok": True, "data": [{"id": 1}, "x"]}
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" not in captured.out
+        assert not _has_table_border(captured.out)
         assert json.loads(captured.out) == [{"id": 1}, "x"]
 
     def test_wrapped_mixed_list_falls_back_to_json(self, capsys):
         payload = {"ok": True, "data": {"items": [{"id": 1}, "x"]}}
         print_human(payload)
         captured = capsys.readouterr()
-        assert "┏" not in captured.out
+        assert not _has_table_border(captured.out)
         assert json.loads(captured.out) == {"items": [{"id": 1}, "x"]}
 
     def test_falls_back_to_json_when_rich_unavailable(self, monkeypatch, capsys):
