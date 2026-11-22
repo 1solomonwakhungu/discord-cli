@@ -8,7 +8,7 @@ discord-cli is designed **JSON-first**, making it ideal for AI agent consumption
 
 1. **Structured output**: Every command returns `{"ok": true/false, "data": ..., "error": ...}`
 2. **No persistent process**: Connects, performs action, disconnects — perfect for one-shot agent calls
-3. **Comprehensive**: 50+ commands across 12 command groups cover every Discord operation
+3. **Comprehensive**: 63 commands across 13 command groups cover every Discord operation
 4. **Scriptable**: Shell-friendly, pipeable, works in any automation pipeline
 
 ## Claude Code Integration
@@ -31,22 +31,13 @@ And parse the JSON output to understand the result.
 
 ### Option 2: Add as a Skill
 
-Place `SKILL.md` (from `skills/discord-cli-server-management/`) in your project's `.claude/skills/discord-cli-server-management/` directory. Claude Code will automatically discover it and know when to use discord-cli.
+Install the published skill directly with the open [skills CLI](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management):
 
-### Option 3: MCP Server (Advanced)
-
-Wrap discord-cli in an MCP server for deeper integration:
-
-```json
-{
-  "mcpServers": {
-    "discord": {
-      "command": "discord-cli",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
+```bash
+npx skills add 1solomonwakhungu/discord-cli --skill discord-cli-server-management
 ```
+
+Or place `SKILL.md` (from `skills/discord-cli-server-management/`) manually in your project's `.claude/skills/discord-cli-server-management/` directory. Claude Code will automatically discover it and know when to use discord-cli.
 
 ## Codex CLI Integration
 
@@ -82,7 +73,7 @@ def discord_cli(*args):
 
 # Example: List channels, find 'general', send a message
 channels = discord_cli("channel", "list")
-general = next(c for c in channels["data"] if c["name"] == "general")
+general = next(c for c in channels["data"]["channels"] if c["name"] == "general")
 discord_cli("message", "send", str(general["id"]), "--content", "Hello from AI agent!")
 ```
 
@@ -94,7 +85,7 @@ discord_cli("message", "send", str(general["id"]), "--content", "Hello from AI a
 discord-cli guild info > server_info.json
 
 # List all members and filter for admins
-discord-cli member list | jq '.data[] | select(.roles[] | contains("Admin"))'
+discord-cli member list | jq '.data.members[] | select(.roles[].name == "Admin")'
 ```
 
 ### JSON Output Parsing
@@ -111,8 +102,8 @@ All commands return this structure:
 
 Parse with `jq`:
 ```bash
-# Get just the data array
-discord-cli channel list | jq '.data'
+# Get just the channels array
+discord-cli channel list | jq '.data.channels'
 
 # Get specific field
 discord-cli guild info | jq '.data.name'
@@ -127,17 +118,17 @@ discord-cli member info 999 | jq '.ok'
 
 ```bash
 # Create a complete server structure
-CATEGORY_ID=$(discord-cli category create "Projects" | jq -r '.data.id')
+CATEGORY_ID=$(discord-cli category create "Projects" | jq -r '.data.created.id')
 discord-cli channel create "general" --type text --category $CATEGORY_ID
 discord-cli channel create "voice" --type voice --category $CATEGORY_ID
-ROLE_ID=$(discord-cli role create "Member" --mentionable | jq -r '.data.id')
+ROLE_ID=$(discord-cli role create "Member" --mentionable | jq -r '.data.created.id')
 ```
 
 ### Moderation Workflow
 
 ```bash
 # Find a member by name
-MEMBER_ID=$(discord-cli search members --query "spammer" | jq -r '.data[0].id')
+MEMBER_ID=$(discord-cli search members "spammer" | jq -r '.data[0].id')
 
 # Kick with reason
 discord-cli member kick $MEMBER_ID --reason "Spam"
@@ -153,8 +144,8 @@ echo "$(date): Kicked user $MEMBER_ID for spam" >> moderation.log
 discord-cli export channel 1234567890 --limit 1000 --format json > history.json
 
 # Analyze with jq
-cat history.json | jq '.data | length'  # Message count
-cat history.json | jq '[.data[].author.name] | unique'  # Unique authors
+cat history.json | jq '.data.messages | length'  # Message count
+cat history.json | jq '[.data.messages[].author_name] | unique'  # Unique authors
 ```
 
 ## Best Practices

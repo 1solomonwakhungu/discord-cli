@@ -1,13 +1,13 @@
 ---
 name: discord-cli-server-management
-description: "Manages Discord servers from the terminal with 50+ JSON-output commands covering channels, categories, roles, members, messages, permissions, webhooks, invites, and threads. Use when you need to manage a Discord server or guild, create or delete channels, assign roles, ban or kick members, bulk-delete or purge messages, audit permissions, set up a Discord bot, automate Discord, or moderate a guild from an AI agent or shell script."
+description: "Manages Discord servers from the terminal with 63 JSON-output commands across 13 command groups covering channels, categories, roles, members, messages, guilds, permissions, webhooks, invites, threads, search, export, and plugins. Use when you need to manage a Discord server or guild, create or delete channels, assign roles, ban or kick members, bulk-delete or purge messages, audit permissions, set up a Discord bot, automate Discord, or moderate a guild from an AI agent or shell script."
 ---
 
 # discord-cli-server-management: AI Agent Integration Guide
 
 ## Prerequisites
 
-1. **Install:** `pip install discordcli-agents`
+1. **Install:** `uv tool install discordcli-agents`, `pipx install discordcli-agents`, or `pip install discordcli-agents` (63 commands across 13 command groups)
 2. **Bot token:** Create a bot at the [Discord Developer Portal](https://discord.com/developers/applications)
 3. **Required intents:** Guilds, Members, Messages, Message Content, Presences
 4. **Set token:** `export DISCORD_BOT_TOKEN="your-token"` or create a `.env` file
@@ -23,9 +23,9 @@ Use `--human` for rich table output (human-only, not for agents).
 ### channel
 Manage text, voice, stage, and forum channels.
 - `channel list` — List all channels with IDs, types, categories
-- `channel create <name> [--type text|voice|stage|forum] [--category ID] [--topic "text"]` — Create a channel
+- `channel create <name> [--type text|voice|stage|forum] [--category ID] [--topic "text"] [--position N] [--nsfw] [--slowmode SECONDS]` — Create a channel
 - `channel delete <id>` — Delete a channel
-- `channel edit <id> [--name NEW] [--topic "text"] [--position N]` — Edit a channel
+- `channel edit <id> [--name NEW] [--topic "text"] [--position N] [--slowmode SECONDS] [--nsfw true|false]` — Edit a channel
 - `channel move <id> --category ID` — Move channel to category
 - `channel info <id>` — Detailed channel info
 
@@ -41,7 +41,7 @@ Manage server roles and permissions.
 - `role list` — List all roles
 - `role create <name> [--color HEX] [--permissions PERMS] [--mentionable] [--hoist]` — Create a role
 - `role delete <id>` — Delete a role
-- `role edit <id> [--name NEW] [--color HEX] [--mentionable true|false]` — Edit a role
+- `role edit <id> [--name NEW] [--color HEX] [--permissions PERMS] [--mentionable true|false] [--hoist true|false]` — Edit a role
 - `role assign <role_id> <user_id>` — Assign role to user
 - `role remove <role_id> <user_id>` — Remove role from user
 - `role info <id>` — Detailed role info
@@ -60,7 +60,7 @@ Moderate and manage server members.
 
 ### message
 Manage channel messages.
-- `message send <channel_id> --content "text"` — Send a message
+- `message send <channel_id> [--content "text"] [--embed-json JSON]` — Send a message
 - `message edit <message_id> --channel ID --content "new text"` — Edit a message
 - `message delete <message_id> --channel ID` — Delete a message
 - `message purge <channel_id> --limit N [--user ID] [--contains "text"]` — Bulk delete
@@ -84,8 +84,8 @@ Server-level management.
 ### permissions
 Fine-grained permission control.
 - `permissions list --channel ID` — List permission overwrites
-- `permissions set --channel ID --role ID --allow PERMS --deny PERMS` — Set permissions
-- `permissions reset --channel ID --role ID` — Reset permissions
+- `permissions set --channel ID [--role ID] [--user ID] [--allow PERMS] [--deny PERMS]` — Set permissions
+- `permissions reset --channel ID [--role ID] [--user ID]` — Reset permissions
 
 ### webhook
 Manage webhooks for automation.
@@ -94,16 +94,16 @@ Manage webhooks for automation.
 - `webhook delete <id>` — Delete webhook
 - `webhook info <id>` — Webhook details
 
-### invite
-Manage server invites.
-- `invite list` — List all invites
-- `invite create --channel ID [--max-age SECONDS] [--max-uses N] [--temporary]` — Create invite
-- `invite delete <code>` — Delete invite
+### invites
+Manage server invites (`invite` also works as a shorthand alias).
+- `invites list` — List all invites
+- `invites create --channel-id ID [--max-age SECONDS] [--max-uses N] [--temporary]` — Create invite
+- `invites delete <code>` — Delete invite
 
 ### threads
 Manage forum and thread channels.
-- `threads list [--channel ID]` — List threads
-- `threads create <name> --channel-id ID [--type public|private]` — Create thread
+- `threads list [--channel-id ID]` — List threads
+- `threads create <name> --channel-id ID [--type public|private] [--auto-archive 60|1440|4320|10080]` — Create thread
 - `threads delete <id>` — Delete thread
 - `threads archive <id>` — Archive thread
 - `threads unarchive <id>` — Unarchive thread
@@ -111,26 +111,30 @@ Manage forum and thread channels.
 
 ### search
 Search server content.
-- `search messages --query "text" [--channel-id ID] [--limit N]` — Search messages
-- `search members --query "name" [--limit N]` — Search members
+- `search messages <query> [--channel-id ID] [--limit N]` — Search messages
+- `search members <query> [--limit N]` — Search members
 
 ### export
 Export message history.
-- `export channel <id> --limit N [--format json|csv]` — Export messages
+- `export channel <id> [--limit N] [--format json|csv]` — Export messages
+
+### plugins
+Inspect loaded third-party `discord_cli.plugins` extensions.
+- `plugins list` — List loaded plugins
 
 ## Agent Recipes
 
 ### Create Category + Channels + Roles
 ```bash
 # 1. Create a category
-discord-cli category create "Projects" | jq -r '.data.id'
+discord-cli category create "Projects" | jq -r '.data.created.id'
 
 # 2. Create channels in that category
 discord-cli channel create "general" --type text --category <CATEGORY_ID>
 discord-cli channel create "voice" --type voice --category <CATEGORY_ID>
 
 # 3. Create a role
-discord-cli role create "ProjectMember" --mentionable | jq -r '.data.id'
+discord-cli role create "ProjectMember" --mentionable | jq -r '.data.created.id'
 
 # 4. Assign role to a member
 discord-cli role assign <ROLE_ID> <USER_ID>
@@ -142,13 +146,13 @@ discord-cli role assign <ROLE_ID> <USER_ID>
 discord-cli export channel <CHANNEL_ID> --limit 500 --format json > messages.json
 
 # Parse with jq
-cat messages.json | jq '.data[] | {author: .author, content: .content, timestamp: .created_at}'
+cat messages.json | jq '.data.messages[] | {author: .author_name, content: .content, timestamp: .created_at}'
 ```
 
 ### Permission Audit
 ```bash
 # List all channels
-CHANNELS=$(discord-cli channel list | jq -r '.data[].id')
+CHANNELS=$(discord-cli channel list | jq -r '.data.channels[].id')
 
 # For each channel, list permission overwrites
 for ch in $CHANNELS; do

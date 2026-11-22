@@ -5,6 +5,41 @@ All notable changes to discord-cli will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-14
+
+### Added
+
+- Published the agent skill on [skills.sh](https://skills.sh/1solomonwakhungu/discord-cli/discord-cli-server-management)
+- Automated Scoop manifest updates after each PyPI publish
+- Automated version synchronization across `README.md`, `commands.json`, `packaging/npm/package.json`, `CITATION.cff`, and `docs/man/discord-cli.1` in release commits
+
+### Changed
+
+- Renamed the agent skill to `discord-cli-server-management` for better agent search discovery
+- Hardened agent skill instructions against prompt injection from untrusted Discord content
+
+## [1.3.0] - 2026-08-26
+
+### Added
+
+- Auto-generated offline man page (`docs/man/discord-cli.1`) shipped in the wheel and verified in CI
+- Global `--token`, `--guild`, and `--human` options on the root CLI group
+- Practical automation recipes (`docs/recipes.md`) and sharpened project positioning
+- Homebrew tap installation instructions and automated coverage enforcement
+- Expanded `SECURITY.md` guidance and clarified manual/local Scoop manifest documentation
+
+### Fixed
+
+- Pinned `gitpython` to keep semantic-release workflows working reliably
+- Removed broken Codecov and security badges from `README.md`
+
+## [1.2.1] - 2026-07-15
+
+### Fixed
+
+- Resolved `mypy` typecheck errors and synchronized packaging metadata
+- Fixed protected-branch release CI workflow and updated GitHub Actions dependencies
+
 ## [1.2.0] - 2026-07-14
 
 ### Added

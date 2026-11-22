@@ -24,7 +24,16 @@ from discord_cli.plugins import load_plugins
 from discord_cli.registry import registry
 
 
-@click.group()
+class AliasedGroup(click.Group):
+    """Click group that transparently resolves shorthand/legacy command aliases."""
+
+    ALIASES: dict[str, str] = {"invite": "invites"}
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        return super().get_command(ctx, self.ALIASES.get(cmd_name, cmd_name))
+
+
+@click.group(cls=AliasedGroup)
 @click.version_option(version=__version__, prog_name="discord-cli")
 @click.option(
     "--token",
