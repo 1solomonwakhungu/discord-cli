@@ -1,4 +1,4 @@
-"""Message commands: send, edit, delete, purge, fetch, pin, unpin, react."""
+"""Message commands: list, send, edit, delete, purge, fetch, pin, unpin, react."""
 
 from __future__ import annotations
 
@@ -15,6 +15,34 @@ from discord_cli.registry import invoke, registry
 @registry.group("message")
 def message_group() -> None:
     """Send and manage messages."""
+
+
+@message_group.command("list")
+@click.argument("channel_id", type=int)
+@click.option("--limit", type=int, default=20, help="Number of messages to fetch (default: 20)")
+@click.option(
+    "--before", "before_id", type=int, default=None, help="Fetch messages before this message ID"
+)
+@click.option(
+    "--after", "after_id", type=int, default=None, help="Fetch messages after this message ID"
+)
+@click.pass_context
+def message_list(
+    ctx: click.Context,
+    channel_id: int,
+    limit: int,
+    before_id: int | None,
+    after_id: int | None,
+) -> None:
+    """List recent messages in a channel."""
+    invoke(
+        ctx,
+        action_message_list,
+        channel_id=channel_id,
+        limit=limit,
+        before_id=before_id,
+        after_id=after_id,
+    )
 
 
 @message_group.command("send")
@@ -95,6 +123,30 @@ def message_unpin(ctx: click.Context, message_id: int, channel_id: int) -> None:
 @click.pass_context
 def message_react(ctx: click.Context, message_id: int, channel_id: int, emoji: str) -> None:
     invoke(ctx, action_message_react, message_id=message_id, channel_id=channel_id, emoji=emoji)
+
+
+async def action_message_list(
+    client: discord.Client,
+    guild_id: int | None,
+    channel_id: int,
+    limit: int,
+    before_id: int | None = None,
+    after_id: int | None = None,
+    **_: Any,
+) -> Any:
+    guild = await get_guild(client, guild_id)
+    channel = get_channel(guild, channel_id)
+    if not hasattr(channel, "history"):
+        raise CliError("Channel does not support reading messages")
+    if limit <= 0:
+        raise CliError("--limit must be a positive integer")
+    history_kwargs: dict[str, Any] = {"limit": limit}
+    if before_id is not None:
+        history_kwargs["before"] = discord.Object(id=before_id)
+    if after_id is not None:
+        history_kwargs["after"] = discord.Object(id=after_id)
+    messages = [message_to_dict(m) async for m in channel.history(**history_kwargs)]
+    return {"channel_id": channel.id, "count": len(messages), "messages": messages}
 
 
 async def action_message_send(
