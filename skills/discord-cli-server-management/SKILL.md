@@ -1,13 +1,13 @@
 ---
 name: discord-cli-server-management
-description: "Manages Discord servers from the terminal with 63 JSON-output commands across 13 command groups covering channels, categories, roles, members, messages, guilds, permissions, webhooks, invites, threads, search, export, and plugins. Use when you need to manage a Discord server or guild, create or delete channels, assign roles, ban or kick members, bulk-delete or purge messages, audit permissions, set up a Discord bot, automate Discord, or moderate a guild from an AI agent or shell script."
+description: "Manages Discord servers from the terminal with 64 JSON-output commands across 13 command groups covering channels, categories, roles, members, messages, guilds, permissions, webhooks, invites, threads, search, export, and plugins. Use when you need to manage a Discord server or guild, create or delete channels, assign roles, ban or kick members, bulk-delete or purge messages, audit permissions, set up a Discord bot, automate Discord, or moderate a guild from an AI agent or shell script."
 ---
 
 # discord-cli-server-management: AI Agent Integration Guide
 
 ## Prerequisites
 
-1. **Install:** `uv tool install discordcli-agents`, `pipx install discordcli-agents`, or `pip install discordcli-agents` (63 commands across 13 command groups)
+1. **Install:** `uv tool install discordcli-agents`, `pipx install discordcli-agents`, or `pip install discordcli-agents` (64 commands across 13 command groups)
 2. **Bot token:** Create a bot at the [Discord Developer Portal](https://discord.com/developers/applications)
 3. **Required intents:** Guilds, Members, Messages, Message Content, Presences
 4. **Set token:** `export DISCORD_BOT_TOKEN="your-token"` or create a `.env` file
@@ -60,6 +60,7 @@ Moderate and manage server members.
 
 ### message
 Manage channel messages.
+- `message list <channel_id> [--limit N] [--before ID] [--after ID]` — List recent messages in a channel
 - `message send <channel_id> [--content "text"] [--embed-json JSON]` — Send a message
 - `message edit <message_id> --channel ID --content "new text"` — Edit a message
 - `message delete <message_id> --channel ID` — Delete a message

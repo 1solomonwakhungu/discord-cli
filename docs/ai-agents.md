@@ -8,7 +8,7 @@ discord-cli is designed **JSON-first**, making it ideal for AI agent consumption
 
 1. **Structured output**: Every command returns `{"ok": true/false, "data": ..., "error": ...}`
 2. **No persistent process**: Connects, performs action, disconnects — perfect for one-shot agent calls
-3. **Comprehensive**: 63 commands across 13 command groups cover every Discord operation
+3. **Comprehensive**: 64 commands across 13 command groups cover every Discord operation
 4. **Scriptable**: Shell-friendly, pipeable, works in any automation pipeline
 
 ## Claude Code Integration

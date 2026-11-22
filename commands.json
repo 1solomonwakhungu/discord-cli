@@ -63,6 +63,7 @@
       "name": "message",
       "description": "Manage channel messages",
       "commands": [
+        {"name": "list", "description": "List recent messages in a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 20}, {"name": "--before", "type": "int"}, {"name": "--after", "type": "int"}]},
         {"name": "send", "description": "Send a message", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--content"}, {"name": "--embed-json"}]},
         {"name": "edit", "description": "Edit a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--content", "required": true}]},
         {"name": "delete", "description": "Delete a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
