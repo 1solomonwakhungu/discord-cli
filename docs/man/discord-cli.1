@@ -617,6 +617,36 @@ Options:
 \fB\-\-channel INTEGER\fR
 Required.
 .RE
+.SS discord\-cli message list
+.nf
+discord\-cli message list [OPTIONS] CHANNEL_ID
+.fi
+.PP
+List recent messages in a channel.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBCHANNEL_ID\fR
+Channel id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-limit INTEGER\fR
+Number of messages to fetch (default: 20) Defaults to 20.
+.RE
+.RS 4
+.TP
+\fB\-\-before INTEGER\fR
+Fetch messages before this message ID
+.RE
+.RS 4
+.TP
+\fB\-\-after INTEGER\fR
+Fetch messages after this message ID
+.RE
 .SS discord\-cli message pin
 .nf
 discord\-cli message pin [OPTIONS] MESSAGE_ID
