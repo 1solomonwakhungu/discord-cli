@@ -84,18 +84,21 @@ runs:
         else:
             pkg = "discordcli-agents"
 
+        child_env = os.environ.copy()
         cmd = ["uvx", "--from", pkg, "discord-cli"]
 
         if os.environ.get("INPUT_PLUGINS", "false").strip().lower() != "true":
+            child_env["DISCORD_CLI_NO_PLUGINS"] = "1"
             cmd.append("--no-plugins")
 
         guild = os.environ.get("INPUT_GUILD", "").strip()
         if guild:
             cmd.extend(["--guild", guild])
 
+        # Enforce policy via environment ceiling so `args` can NEVER widen it!
         policy = os.environ.get("INPUT_POLICY", "").strip()
         if policy:
-            cmd.extend(["--policy", policy])
+            child_env["DISCORD_CLI_POLICY"] = policy
 
         if os.environ.get("INPUT_DRY_RUN", "false").strip().lower() == "true":
             cmd.append("--dry-run")
@@ -105,14 +108,27 @@ runs:
             print("::error::Input 'args' must not be empty.", file=sys.stderr)
             sys.exit(2)
 
-        cmd.extend(shlex.split(raw_args))
+        try:
+            parsed_args = shlex.split(raw_args)
+        except ValueError as exc:
+            print(f"::error::Invalid shell quoting in 'args': {exc}", file=sys.stderr)
+            sys.exit(2)
 
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        cmd.extend(parsed_args)
+
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=child_env)
         stdout = proc.stdout.strip()
-        if proc.stderr:
-            sys.stderr.write(proc.stderr)
-        if stdout:
-            print(stdout)
+
+        # Prevent untrusted Discord output from injecting GitHub workflow commands (::set-env, etc.).
+        stop_token = f"dcli-stop-{uuid.uuid4().hex}"
+        if proc.stderr or stdout:
+            print(f"::stop-commands::{stop_token}", flush=True)
+            if proc.stderr:
+                sys.stderr.write(proc.stderr)
+                sys.stderr.flush()
+            if stdout:
+                print(stdout, flush=True)
+            print(f"::{stop_token}::", flush=True)
 
         ok_val = "false"
         data_val = ""

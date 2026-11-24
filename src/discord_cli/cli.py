@@ -33,9 +33,26 @@ from discord_cli.commands import (
 from discord_cli.errors import EXIT_USAGE
 from discord_cli.output import MIN_MAX_CHARS, make_payload, print_json
 from discord_cli.plugins import load_plugins, plugins_disabled_by_env
-from discord_cli.policy import POLICY_LEVELS
+from discord_cli.policy import POLICY_LEVELS, redact_secrets_in_text
 from discord_cli.registry import OUTPUT_FORMATS, registry
 from discord_cli.resolvers import RESOURCE_ID
+
+
+def _argv_before_dashdash(argv: list[str]) -> list[str]:
+    try:
+        return argv[: argv.index("--")]
+    except ValueError:
+        return argv
+
+
+def _extract_token_args(argv: list[str]) -> list[str]:
+    tokens: list[str] = []
+    for idx, arg in enumerate(argv):
+        if arg == "--token" and idx + 1 < len(argv):
+            tokens.append(argv[idx + 1])
+        elif arg.startswith("--token="):
+            tokens.append(arg.split("=", 1)[1])
+    return tokens
 
 
 class AliasedGroup(click.Group):
@@ -89,8 +106,11 @@ class AliasedGroup(click.Group):
         standalone_mode: bool = True,
         **extra: Any,
     ) -> Any:
+        import os
+
         argv = list(sys.argv[1:]) if args is None else list(args)
-        if not standalone_mode or "--human" in argv:
+        flag_region = _argv_before_dashdash(argv)
+        if not standalone_mode or "--human" in flag_region:
             return super().main(
                 args=argv,
                 prog_name=prog_name,
@@ -113,17 +133,30 @@ class AliasedGroup(click.Group):
                     if exc.ctx is not None
                     else "discord-cli describe list --compact"
                 )
+                safe_msg = redact_secrets_in_text(
+                    exc.format_message(),
+                    extra_secrets=_extract_token_args(argv),
+                )
+                env_compact = os.environ.get("DISCORD_CLI_COMPACT", "").strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
                 error = {
                     "type": exc.__class__.__name__,
                     "code": "USAGE_ERROR",
                     "category": "USAGE_ERROR",
                     "exit_code": EXIT_USAGE,
                     "retryable": False,
-                    "message": exc.format_message(),
+                    "message": safe_msg,
                     "recovery_hint": f"Inspect command usage with `{cmd_hint}`.",
                     "suggested_command": cmd_hint,
                 }
-                print_json(make_payload(error=error), compact=("--compact" in argv))
+                print_json(
+                    make_payload(error=error),
+                    compact=("--compact" in flag_region or env_compact),
+                )
                 sys.exit(EXIT_USAGE)
             exc.show()
             sys.exit(exc.exit_code)

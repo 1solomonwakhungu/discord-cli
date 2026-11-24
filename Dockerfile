@@ -23,8 +23,9 @@ RUN uv venv /app/.venv --python 3.12 && \
 
 FROM gcr.io/distroless/cc-debian12:nonroot
 
-COPY --from=builder --chown=nonroot:nonroot /python /python
-COPY --from=builder --chown=nonroot:nonroot /app/.venv /app/.venv
+# Keep Python runtime and venv owned by root (read-only for nonroot user at runtime).
+COPY --from=builder /python /python
+COPY --from=builder /app/.venv /app/.venv
 
 ENV PATH="/app/.venv/bin:/usr/local/bin:/usr/bin:/bin" \
     PYTHONUNBUFFERED=1 \
