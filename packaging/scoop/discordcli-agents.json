@@ -1,11 +1,11 @@
 {
-    "version": "1.6.0",
+    "version": "1.7.0",
     "description": "Command-line tool for managing Discord servers and automating Discord via AI agents",
     "homepage": "https://github.com/1solomonwakhungu/discord-cli",
     "license": "MIT",
     "depends": "python",
-    "url": "https://files.pythonhosted.org/packages/ab/f5/0bb014f66123a0c050d812f0abcdc2221dc32285624a373fb6d6c22f3062/discordcli_agents-1.6.0-py3-none-any.whl",
-    "hash": "0b332c1e0a9af8e4e60548380d51b780e6bab2db5529a1113ed323e1229f9dc8",
+    "url": "https://files.pythonhosted.org/packages/b1/d5/9a91360e387f0fb47707ac336f6a1ddee6379658885a876d4d23f771b581/discordcli_agents-1.7.0-py3-none-any.whl",
+    "hash": "94747183b9be85c1a602788c219a4356660b78b9428a2c7a1b81ed0e5aca6c59",
     "installer": {
         "script": [
             "pip install --upgrade \"$dir\\discordcli_agents-${version}-py3-none-any.whl\""
