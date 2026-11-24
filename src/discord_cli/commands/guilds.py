@@ -8,7 +8,16 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import bool_value, get_guild, iso, member_to_dict, read_image_bytes
+from discord_cli.models import (
+    bool_value,
+    fetch_guild_channels,
+    fetch_guild_roles,
+    get_guild,
+    is_rest_mode,
+    iso,
+    member_to_dict,
+    read_image_bytes_async,
+)
 from discord_cli.registry import invoke, registry
 
 
@@ -93,19 +102,48 @@ def guild_prune(ctx: click.Context, days: int, dry_run: str) -> None:
     invoke(ctx, action_guild_prune, days=days, dry_run=bool_value(dry_run))
 
 
+async def _fetch_emojis(guild: discord.Guild) -> list[discord.Emoji]:
+    if guild.emojis:
+        return list(guild.emojis)
+    if hasattr(guild, "fetch_emojis"):
+        return list(await guild.fetch_emojis())
+    return []
+
+
+async def _fetch_stickers(guild: discord.Guild) -> list[discord.GuildSticker]:
+    if guild.stickers:
+        return list(guild.stickers)
+    if hasattr(guild, "fetch_stickers"):
+        return list(await guild.fetch_stickers())
+    return []
+
+
 async def action_guild_info(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    owner = guild.owner or (await guild.fetch_member(guild.owner_id) if guild.owner_id else None)
+    rest = is_rest_mode(client)
+    owner = guild.owner
+    if owner is None and guild.owner_id:
+        try:
+            owner = await guild.fetch_member(guild.owner_id)
+        except discord.HTTPException:
+            owner = None
+    channels = await fetch_guild_channels(guild, client=client)
+    roles = await fetch_guild_roles(guild, client=client)
+    emojis = await _fetch_emojis(guild)
+    stickers = await _fetch_stickers(guild)
+    member_count = guild.member_count
+    if member_count is None:
+        member_count = getattr(guild, "approximate_member_count", None)
     return {
         "id": guild.id,
         "name": guild.name,
         "description": guild.description,
-        "owner": member_to_dict(owner) if owner else {"id": guild.owner_id},
-        "member_count": guild.member_count,
-        "channel_count": len(guild.channels),
-        "role_count": len(guild.roles),
-        "emoji_count": len(guild.emojis),
-        "sticker_count": len(guild.stickers),
+        "owner": member_to_dict(owner, rest_mode=rest) if owner else {"id": guild.owner_id},
+        "member_count": member_count,
+        "channel_count": len(channels),
+        "role_count": len(roles),
+        "emoji_count": len(emojis),
+        "sticker_count": len(stickers),
         "premium_tier": guild.premium_tier,
         "premium_subscription_count": guild.premium_subscription_count,
         "verification_level": str(guild.verification_level),
@@ -130,6 +168,7 @@ async def action_guild_edit(client: discord.Client, guild_id: int | None, **kwar
 
 async def action_guild_emojis_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
+    emojis = await _fetch_emojis(guild)
     return {
         "guild_id": guild.id,
         "emojis": [
@@ -142,7 +181,7 @@ async def action_guild_emojis_list(client: discord.Client, guild_id: int | None,
                 "url": str(emoji.url),
                 "roles": [{"id": r.id, "name": r.name} for r in emoji.roles],
             }
-            for emoji in guild.emojis
+            for emoji in emojis
         ],
     }
 
@@ -151,8 +190,9 @@ async def action_guild_emojis_create(
     client: discord.Client, guild_id: int | None, name: str, image: str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
+    image_bytes = await read_image_bytes_async(image)
     emoji = await guild.create_custom_emoji(
-        name=name, image=read_image_bytes(image), reason="discord_cli emoji create"
+        name=name, image=image_bytes, reason="discord_cli emoji create"
     )
     return {
         "created": {
@@ -168,7 +208,8 @@ async def action_guild_emojis_delete(
     client: discord.Client, guild_id: int | None, emoji_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    emoji = discord.utils.get(guild.emojis, id=emoji_id)
+    emojis = await _fetch_emojis(guild)
+    emoji = discord.utils.get(emojis, id=emoji_id)
     if emoji is None:
         raise CliError(f"Emoji not found: {emoji_id}")
     data = {"id": emoji.id, "name": emoji.name}
@@ -178,6 +219,7 @@ async def action_guild_emojis_delete(
 
 async def action_guild_stickers_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
+    stickers = await _fetch_stickers(guild)
     return {
         "guild_id": guild.id,
         "stickers": [
@@ -189,7 +231,7 @@ async def action_guild_stickers_list(client: discord.Client, guild_id: int | Non
                 "format": str(sticker.format),
                 "url": sticker.url,
             }
-            for sticker in guild.stickers
+            for sticker in stickers
         ],
     }
 
@@ -210,7 +252,6 @@ async def action_guild_bans_list(client: discord.Client, guild_id: int | None, *
 
 
 async def action_guild_regions(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
-    await get_guild(client, guild_id)
     route = discord.http.Route("GET", "/voice/regions")
     regions = await client.http.request(route)
     return {

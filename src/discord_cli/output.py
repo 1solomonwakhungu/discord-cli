@@ -59,10 +59,11 @@ def print_human(payload: dict[str, Any]) -> None:
         print_json(payload)
         return
 
-    console = Console()
     if not payload.get("ok"):
-        console.print(f"[red]Error:[/red] {payload['error'].get('message')}")
+        Console(stderr=True).print(f"[red]Error:[/red] {payload['error'].get('message')}")
         return
+
+    console = Console()
 
     data = payload.get("data")
     rows, title = _extract_table_rows(data)
