@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -144,10 +147,28 @@ jobs:
           # don't fail the CI solely because Codecov could not be contacted or token missing
           fail_ci_if_error: false
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install project and pip-audit
+        run: |
+          python -m venv .audit-venv
+          .audit-venv/bin/pip install --upgrade pip
+          .audit-venv/bin/pip install -e .
+          pip install pip-audit
+      - name: Audit runtime dependencies
+        run: |
+          SITE_PACKAGES=$(.audit-venv/bin/python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+          pip-audit --path "$SITE_PACKAGES" --skip-editable --desc on
+
   ci:
     name: ci
     if: always()
-    needs: [lint, typecheck, manpage, test, build, coverage-report]
+    needs: [lint, typecheck, manpage, test, build, coverage-report, dependency-audit]
     runs-on: ubuntu-latest
     steps:
       - name: Require every CI job to succeed
@@ -158,3 +179,4 @@ jobs:
           test "${{ needs.test.result }}" = success
           test "${{ needs.build.result }}" = success
           test "${{ needs.coverage-report.result }}" = success
+          test "${{ needs.dependency-audit.result }}" = success
