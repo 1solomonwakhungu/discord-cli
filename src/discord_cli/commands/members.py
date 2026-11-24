@@ -27,9 +27,13 @@ def member_group() -> None:
 
 
 @member_group.command("list")
+@click.option("--limit", type=int, default=None, help="Maximum number of members to return")
+@click.option(
+    "--after", "after_id", type=int, default=None, help="Fetch members after this user ID"
+)
 @click.pass_context
-def member_list(ctx: click.Context) -> None:
-    invoke(ctx, action_member_list)
+def member_list(ctx: click.Context, limit: int | None, after_id: int | None) -> None:
+    invoke(ctx, action_member_list, limit=limit, after_id=after_id)
 
 
 @member_group.command("info")
@@ -134,30 +138,53 @@ def _raw_member_to_dict(
     }
 
 
-async def _fetch_members_rest(client: discord.Client, guild: discord.Guild) -> list[dict[str, Any]]:
+async def _fetch_members_rest(
+    client: discord.Client,
+    guild: discord.Guild,
+    *,
+    limit: int | None = None,
+    after_id: int | None = None,
+) -> list[dict[str, Any]]:
     roles = await fetch_guild_roles(guild, client=client)
     roles_by_id = {r.id: r for r in roles}
     all_members: list[dict[str, Any]] = []
-    after: int | None = None
+    after: int | None = after_id
     while True:
-        batch = await client.http.get_members(guild.id, limit=1000, after=after)
+        remaining = 1000 if limit is None else min(1000, limit - len(all_members))
+        if remaining <= 0:
+            break
+        batch = await client.http.get_members(guild.id, limit=remaining, after=after)
         if not batch:
             break
         for raw in batch:
             all_members.append(_raw_member_to_dict(raw, roles_by_id))
-        if len(batch) < 1000:
+        if len(batch) < remaining or (limit is not None and len(all_members) >= limit):
             break
         after = int(batch[-1]["user"]["id"])
     return all_members
 
 
-async def action_member_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
+async def action_member_list(
+    client: discord.Client,
+    guild_id: int | None,
+    limit: int | None = None,
+    after_id: int | None = None,
+    **_: Any,
+) -> Any:
+    if limit is not None and limit <= 0:
+        raise CliError("--limit must be a positive integer")
     guild = await get_guild(client, guild_id)
     rest = is_rest_mode(client)
     if rest:
         try:
-            members_data = await _fetch_members_rest(client, guild)
-            return {"guild_id": guild.id, "members": members_data}
+            members_data = await _fetch_members_rest(client, guild, limit=limit, after_id=after_id)
+            payload: dict[str, Any] = {"guild_id": guild.id, "members": members_data}
+            if limit is not None and members_data:
+                payload["pagination"] = {
+                    "has_more": len(members_data) >= limit,
+                    "next_after": members_data[-1]["id"],
+                }
+            return payload
         except discord.Forbidden:
             return {
                 "guild_id": guild.id,
@@ -169,14 +196,27 @@ async def action_member_list(client: discord.Client, guild_id: int | None, **_: 
                 ),
             }
     try:
-        members = [member async for member in guild.fetch_members(limit=None)]
-        return {"guild_id": guild.id, "members": [member_to_dict(m) for m in members]}
+        fetch_kwargs: dict[str, Any] = {"limit": limit}
+        if after_id is not None:
+            fetch_kwargs["after"] = discord.Object(id=after_id)
+        members = [member async for member in guild.fetch_members(**fetch_kwargs)]
+        members_data = [member_to_dict(m) for m in members]
+        payload = {"guild_id": guild.id, "members": members_data}
+        if limit is not None and members_data:
+            payload["pagination"] = {
+                "has_more": len(members_data) >= limit,
+                "next_after": members_data[-1]["id"],
+            }
+        return payload
     except discord.ClientException as exc:
         if "Intents.members" not in str(exc):
             raise
+        cached = [m for m in guild.members if after_id is None or m.id > after_id]
+        if limit is not None:
+            cached = cached[:limit]
         return {
             "guild_id": guild.id,
-            "members": [member_to_dict(m) for m in guild.members],
+            "members": [member_to_dict(m) for m in cached],
             "partial": True,
             "warning": "Member intent is not enabled for this bot; returned cached visible members only.",
         }

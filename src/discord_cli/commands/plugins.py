@@ -8,7 +8,7 @@ import click
 
 from discord_cli.output import make_payload, print_output
 from discord_cli.plugins import loaded_plugins, plugin_errors
-from discord_cli.registry import registry
+from discord_cli.registry import build_output_options, registry
 
 
 @registry.group("plugins")
@@ -36,4 +36,4 @@ def plugins_list(ctx: click.Context) -> None:
             }
             for err in errors
         ]
-    print_output(make_payload(data), human)
+    print_output(make_payload(data), human, options=build_output_options(ctx))

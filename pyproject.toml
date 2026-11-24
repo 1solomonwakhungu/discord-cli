@@ -60,6 +60,7 @@ PyPI = "https://pypi.org/project/discordcli-agents/"
 
 [project.scripts]
 discord-cli = "discord_cli.cli:main"
+discordcli-agents = "discord_cli.cli:main"
 
 [tool.hatch.version]
 path = "src/discord_cli/__init__.py"
