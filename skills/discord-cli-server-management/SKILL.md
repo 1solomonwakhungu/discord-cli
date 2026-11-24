@@ -48,7 +48,7 @@ Manage server roles and permissions.
 
 ### member
 Moderate and manage server members.
-- `member list` — List all members
+- `member list [--limit N] [--after ID]` — List members (with optional pagination)
 - `member info <id>` — Detailed member info
 - `member kick <id> [--reason "text"]` — Kick a member
 - `member ban <id> [--reason "text"] [--delete-message-days N]` — Ban a member
@@ -61,14 +61,18 @@ Moderate and manage server members.
 ### message
 Manage channel messages.
 - `message list <channel_id> [--limit N] [--before ID] [--after ID]` — List recent messages in a channel
-- `message send <channel_id> [--content "text"] [--embed-json JSON]` — Send a message
+- `message send <channel_id> [--content "text"] [--embed-json JSON] [--embed-file PATH] [--file PATH] [--reply-to ID] [--silent] [--split]` — Send a message
 - `message edit <message_id> --channel ID --content "new text"` — Edit a message
 - `message delete <message_id> --channel ID` — Delete a message
 - `message purge <channel_id> --limit N [--user ID] [--contains "text"]` — Bulk delete
 - `message fetch <message_id> --channel ID` — Get message content
 - `message pin <message_id> --channel ID` — Pin a message
 - `message unpin <message_id> --channel ID` — Unpin a message
+- `message pins <channel_id> [--limit N]` — List pinned messages
+- `message publish <message_id> --channel ID` — Crosspost an announcement message
+- `message download <message_id> --channel ID --out DIR` — Download attachments safely
 - `message react <message_id> --channel ID --emoji "emoji"` — React to a message
+- `message unreact <message_id> --channel ID --emoji "emoji" [--user ID]` — Remove a reaction
 
 ### guild
 Server-level management.
@@ -89,11 +93,16 @@ Fine-grained permission control.
 - `permissions reset --channel ID [--role ID] [--user ID]` — Reset permissions
 
 ### webhook
-Manage webhooks for automation.
+Manage and execute webhooks for automation.
 - `webhook list [--channel ID] [--show-secrets]` — List webhooks (tokens redacted by default)
 - `webhook create --channel ID --name "name" [--show-secrets]` — Create webhook
+- `webhook edit <id> [--name "name"] [--channel ID] [--show-secrets]` — Edit webhook
 - `webhook delete <id>` — Delete webhook
 - `webhook info <id> [--show-secrets]` — Webhook details
+- `webhook send [--url URL] [--content "text"] [--embed-json JSON] [--embed-file PATH] [--file PATH] [--username NAME] [--avatar-url URL] [--thread-id ID] [--thread-name NAME] [--template NAME] [--title TEXT] [--description TEXT] [--color HEX] [--field K=V] [--split] [--silent] [--no-wait]` — Send via webhook URL (zero Gateway)
+- `webhook edit-message <message_id> [--url URL] [--thread-id ID] [--content "text"] [--embed-json JSON] [--embed-file PATH] [--template NAME] [--title TEXT] [--description TEXT] [--color HEX] [--field K=V]` — Edit webhook message
+- `webhook delete-message <message_id> [--url URL] [--thread-id ID]` — Delete webhook message
+- `webhook fetch-message <message_id> [--url URL] [--thread-id ID]` — Fetch webhook message
 
 ### invites
 Manage server invites (`invite` also works as a shorthand alias).
@@ -122,6 +131,19 @@ Export message history.
 ### plugins
 Inspect loaded third-party `discord_cli.plugins` extensions.
 - `plugins list` — List loaded plugins
+
+### audit
+Inspect guild audit logs for moderation and security triage.
+- `audit list [--limit N] [--action NAME] [--user ID] [--before ID] [--after ID]` — List recent audit log entries
+- `audit user <user_id> [--limit N]` — List audit entries performed by or targeting a user
+
+### doctor
+Diagnose bot auth, privileged intents, role hierarchy, and permissions.
+- `doctor check [--channel ID]` — Run connectivity, intent, hierarchy, and permission diagnostics
+
+### api
+Call any Discord REST API v10 endpoint directly.
+- `api request <method> <endpoint> [--json-body JSON] [--query K=V] [--reason TEXT]` — Execute a raw Discord REST API v10 request
 
 ## Agent Recipes
 
@@ -183,3 +205,10 @@ done
 | `--human` | Human-readable table output | JSON (default) |
 | `--gateway` | Use WebSocket Gateway instead of REST-first default | Off (REST) |
 | `--no-plugins` | Disable loading third-party plugins | Off |
+| `--compact` | Minified single-line JSON | Off |
+| `--fields` | Comma-separated dot-path field projection | All fields |
+| `--max-chars` | Truncate JSON cleanly within N chars | Unlimited |
+| `--string-ids` | Serialize 64-bit snowflake IDs as strings | Off |
+| `--format` | Output format (`json\|jsonl\|csv\|table\|markdown\|raw`) | `json` |
+| `--quiet` | Print only primary resource IDs | Off |
+| `--output` | Write formatted output atomically to file | stdout |

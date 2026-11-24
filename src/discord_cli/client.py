@@ -1,4 +1,4 @@
-"""Discord bot lifecycle: REST-first by default, with opt-in Gateway fallback."""
+"""Discord bot lifecycle: REST-first by default, zero-gateway HTTP, and opt-in Gateway."""
 
 from __future__ import annotations
 
@@ -13,9 +13,10 @@ import discord
 
 from discord_cli.config import load_config
 from discord_cli.errors import DiscordCliError
-from discord_cli.output import make_payload, print_output
+from discord_cli.output import OutputOptions, make_payload, print_output
 
 Action = Callable[..., Awaitable[Any]]
+HttpAction = Callable[..., Awaitable[Any]]
 
 
 def _format_exception(exc: Exception) -> dict[str, Any]:
@@ -159,6 +160,17 @@ def run_bot(
     return asyncio.run(_run_async(action, kwargs, token, use_gateway=use_gateway))
 
 
+def _emit_and_exit(
+    result: Any,
+    error: dict[str, Any] | None,
+    human: bool,
+    output_options: OutputOptions | None = None,
+) -> None:
+    payload = make_payload(result, error)
+    print_output(payload, human, options=output_options)
+    raise SystemExit(0 if payload["ok"] else 1)
+
+
 def run_action(
     action: Action,
     kwargs: dict[str, Any],
@@ -166,19 +178,40 @@ def run_action(
     token: str | None = None,
     *,
     use_gateway: bool | None = None,
+    output_options: OutputOptions | None = None,
 ) -> None:
     """Load config, run the action against Discord, print the payload, and exit with its status."""
     try:
         bot_token = load_config(token).bot_token
     except DiscordCliError as exc:
-        payload = make_payload(error={"type": exc.__class__.__name__, "message": str(exc)})
-        print_output(payload, human)
-        raise SystemExit(1) from None
+        _emit_and_exit(
+            None,
+            {"type": exc.__class__.__name__, "message": str(exc)},
+            human,
+            output_options=output_options,
+        )
 
     if use_gateway is None:
         result, error = run_bot(action, kwargs, bot_token)
     else:
         result, error = run_bot(action, kwargs, bot_token, use_gateway=use_gateway)
-    payload = make_payload(result, error)
-    print_output(payload, human)
-    raise SystemExit(0 if payload["ok"] else 1)
+    _emit_and_exit(result, error, human, output_options=output_options)
+
+
+def run_http_action(
+    action: HttpAction,
+    kwargs: dict[str, Any],
+    human: bool = False,
+    *,
+    output_options: OutputOptions | None = None,
+) -> None:
+    """Run a zero-gateway, bot-token-free HTTP action (e.g. webhook execution) and exit."""
+
+    async def _runner() -> tuple[Any, dict[str, Any] | None]:
+        try:
+            return await action(**kwargs), None
+        except Exception as exc:  # noqa: BLE001 - user-facing CLI boundary
+            return None, _format_exception(exc)
+
+    result, error = asyncio.run(_runner())
+    _emit_and_exit(result, error, human, output_options=output_options)

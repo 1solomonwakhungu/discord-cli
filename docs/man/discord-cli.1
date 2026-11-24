@@ -46,15 +46,49 @@ default.
 .TP
 \fB\-\-no\-plugins\fR
 Disable loading third\-party discord_cli.plugins entry points.
+.TP
+\fB\-\-compact\fR
+Emit minified single\-line JSON without whitespace.
+.TP
+\fB\-\-fields TEXT\fR
+Comma\-separated dot\-paths to project from output data (e.g.
+id,name,author.name).
+.TP
+\fB\-\-max\-chars INTEGER\fR
+Truncate JSON output cleanly to fit within N characters while staying valid
+JSON.
+.TP
+\fB\-\-string\-ids\fR
+Serialize Discord 64\-bit snowflake IDs as strings for JS/TS safety.
+.TP
+\fB\-\-format {json|jsonl|csv|table|markdown|raw}\fR
+Output format: json, jsonl, csv, table, markdown, or raw. One of: json,
+jsonl, csv, table, markdown, raw.
+.TP
+\fB\-\-quiet\fR
+Print only primary resource IDs (one per line).
+.TP
+\fB\-\-output TEXT\fR
+Write formatted output atomically to a file path.
 .SH COMMANDS
 Commands are grouped by the Discord resource they operate on. Each group is
 documented in its own section below.
+.TP
+\fBapi\fR
+Call any Discord REST API v10 endpoint directly with auth and rate\-limit
+handling.
+.TP
+\fBaudit\fR
+Inspect guild audit logs for moderation and security triage.
 .TP
 \fBcategory\fR
 Manage channel categories.
 .TP
 \fBchannel\fR
 Manage guild channels.
+.TP
+\fBdoctor\fR
+Diagnose bot token, privileged intents, role hierarchy, and permissions.
 .TP
 \fBexport\fR
 Export channel data.
@@ -88,7 +122,100 @@ Search messages and members.
 Manage server threads.
 .TP
 \fBwebhook\fR
-Manage channel webhooks.
+Manage and execute channel webhooks.
+.SH API
+Call any Discord REST API v10 endpoint directly with auth and rate\-limit
+handling.
+.SS discord\-cli api request
+.nf
+discord\-cli api request [OPTIONS] METHOD ENDPOINT
+.fi
+.PP
+Execute a raw authenticated Discord REST API v10 request.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMETHOD\fR
+Method. Required.
+.RE
+.RS 4
+.TP
+\fBENDPOINT\fR
+Endpoint. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-json\-body TEXT\fR
+JSON request body string or @path/to/body.json.
+.RE
+.RS 4
+.TP
+\fB\-\-query TEXT\fR
+Repeatable query parameter in key=value form.
+.RE
+.RS 4
+.TP
+\fB\-\-reason TEXT\fR
+Audit log reason header (X\-Audit\-Log\-Reason).
+.RE
+.SH AUDIT
+Inspect guild audit logs for moderation and security triage.
+.SS discord\-cli audit list
+.nf
+discord\-cli audit list [OPTIONS]
+.fi
+.PP
+List recent guild audit log entries.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-limit INTEGER\fR
+Max audit log entries to fetch (default: 50) Defaults to 50.
+.RE
+.RS 4
+.TP
+\fB\-\-action TEXT\fR
+Filter by AuditLogAction name
+.RE
+.RS 4
+.TP
+\fB\-\-user INTEGER\fR
+Filter by actor user ID
+.RE
+.RS 4
+.TP
+\fB\-\-before INTEGER\fR
+Fetch entries before this ID
+.RE
+.RS 4
+.TP
+\fB\-\-after INTEGER\fR
+Fetch entries after this ID
+.RE
+.SS discord\-cli audit user
+.nf
+discord\-cli audit user [OPTIONS] USER_ID
+.fi
+.PP
+List audit log entries performed by or targeting a specific user ID.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBUSER_ID\fR
+User id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-limit INTEGER\fR
+Max recent audit entries to scan (default: 50) Defaults to 50.
+.RE
 .SH CATEGORY
 Manage channel categories.
 .SS discord\-cli category create
@@ -273,6 +400,21 @@ Options:
 .TP
 \fB\-\-category INTEGER\fR
 Required.
+.RE
+.SH DOCTOR
+Diagnose bot token, privileged intents, role hierarchy, and permissions.
+.SS discord\-cli doctor check
+.nf
+discord\-cli doctor check [OPTIONS]
+.fi
+.PP
+Run connectivity, intent, hierarchy, and permission diagnostics.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-channel INTEGER\fR
+Optional channel ID to inspect effective bot permissions in.
 .RE
 .SH EXPORT
 Export channel data.
@@ -489,8 +631,20 @@ Set the reason value.
 .RE
 .SS discord\-cli member list
 .nf
-discord\-cli member list
+discord\-cli member list [OPTIONS]
 .fi
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-limit INTEGER\fR
+Maximum number of members to return
+.RE
+.RS 4
+.TP
+\fB\-\-after INTEGER\fR
+Fetch members after this user ID
+.RE
 .SS discord\-cli member nickname
 .nf
 discord\-cli member nickname MEMBER_ID NICKNAME
@@ -583,6 +737,31 @@ Options:
 \fB\-\-channel INTEGER\fR
 Required.
 .RE
+.SS discord\-cli message download
+.nf
+discord\-cli message download [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Download all attachments from a message into a local directory.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-channel INTEGER\fR
+Required.
+.RE
+.RS 4
+.TP
+\fB\-\-out TEXT\fR
+Directory to save downloaded attachments. Required.
+.RE
 .SS discord\-cli message edit
 .nf
 discord\-cli message edit [OPTIONS] MESSAGE_ID
@@ -672,6 +851,46 @@ Options:
 \fB\-\-channel INTEGER\fR
 Required.
 .RE
+.SS discord\-cli message pins
+.nf
+discord\-cli message pins [OPTIONS] CHANNEL_ID
+.fi
+.PP
+List pinned messages in a channel.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBCHANNEL_ID\fR
+Channel id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-limit INTEGER\fR
+Max pinned messages to return (default: 50) Defaults to 50.
+.RE
+.SS discord\-cli message publish
+.nf
+discord\-cli message publish [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Crosspost (publish) an announcement channel message.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-channel INTEGER\fR
+Required.
+.RE
 .SS discord\-cli message purge
 .nf
 discord\-cli message purge [OPTIONS] CHANNEL_ID
@@ -739,12 +958,37 @@ Options:
 .RS 4
 .TP
 \fB\-\-content TEXT\fR
-Set the content value.
+Message text, or '\-' to read from stdin.
 .RE
 .RS 4
 .TP
 \fB\-\-embed\-json TEXT\fR
-Set the embed json value.
+Embed JSON string or @filepath.
+.RE
+.RS 4
+.TP
+\fB\-\-embed\-file TEXT\fR
+Path to a JSON file containing an embed.
+.RE
+.RS 4
+.TP
+\fB\-\-file TEXT\fR
+Attachment file path (repeatable).
+.RE
+.RS 4
+.TP
+\fB\-\-reply\-to INTEGER\fR
+Message ID to reply to.
+.RE
+.RS 4
+.TP
+\fB\-\-silent\fR
+Suppress push notifications.
+.RE
+.RS 4
+.TP
+\fB\-\-split\fR
+Split content over 2000 chars.
 .RE
 .SS discord\-cli message unpin
 .nf
@@ -763,6 +1007,36 @@ Options:
 .TP
 \fB\-\-channel INTEGER\fR
 Required.
+.RE
+.SS discord\-cli message unreact
+.nf
+discord\-cli message unreact [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Remove a reaction from a message.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-channel INTEGER\fR
+Required.
+.RE
+.RS 4
+.TP
+\fB\-\-emoji TEXT\fR
+Required.
+.RE
+.RS 4
+.TP
+\fB\-\-user INTEGER\fR
+Remove reaction from this user ID (default: bot)
 .RE
 .SH PERMISSIONS
 Manage per\-channel permission overwrites.
@@ -1118,7 +1392,7 @@ Arguments:
 Thread id. Required.
 .RE
 .SH WEBHOOK
-Manage channel webhooks.
+Manage and execute channel webhooks.
 .SS discord\-cli webhook create
 .nf
 discord\-cli webhook create [OPTIONS]
@@ -1150,6 +1424,153 @@ Arguments:
 .TP
 \fBWEBHOOK_ID\fR
 Webhook id. Required.
+.RE
+.SS discord\-cli webhook delete\-message
+.nf
+discord\-cli webhook delete\-message [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Delete a message sent by a webhook (zero Gateway, no bot token required).
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-url TEXT\fR
+Webhook URL (or DISCORD_WEBHOOK_URL env var).
+.RE
+.RS 4
+.TP
+\fB\-\-thread\-id INTEGER\fR
+Thread ID if message is in a thread.
+.RE
+.SS discord\-cli webhook edit
+.nf
+discord\-cli webhook edit [OPTIONS] WEBHOOK_ID
+.fi
+.PP
+Edit webhook name or channel.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBWEBHOOK_ID\fR
+Webhook id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-name TEXT\fR
+Set the name value.
+.RE
+.RS 4
+.TP
+\fB\-\-channel INTEGER\fR
+Set the channel id value.
+.RE
+.RS 4
+.TP
+\fB\-\-show\-secrets\fR
+Include unredacted webhook URL tokens in the output.
+.RE
+.SS discord\-cli webhook edit\-message
+.nf
+discord\-cli webhook edit\-message [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Edit a message previously sent by a webhook (zero Gateway, no bot token
+required).
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-url TEXT\fR
+Webhook URL (or DISCORD_WEBHOOK_URL env var).
+.RE
+.RS 4
+.TP
+\fB\-\-thread\-id INTEGER\fR
+Thread ID if message is in a thread.
+.RE
+.RS 4
+.TP
+\fB\-\-content TEXT\fR
+Updated message text, or '\-' to read from stdin.
+.RE
+.RS 4
+.TP
+\fB\-\-embed\-json TEXT\fR
+Updated embed JSON string or @filepath.
+.RE
+.RS 4
+.TP
+\fB\-\-embed\-file TEXT\fR
+Path to a JSON file containing an embed.
+.RE
+.RS 4
+.TP
+\fB\-\-template {alert|deploy|error|info|success|warning}\fR
+Built\-in embed preset. One of: alert, deploy, error, info, success,
+warning.
+.RE
+.RS 4
+.TP
+\fB\-\-title TEXT\fR
+Embed title.
+.RE
+.RS 4
+.TP
+\fB\-\-description TEXT\fR
+Embed description.
+.RE
+.RS 4
+.TP
+\fB\-\-color TEXT\fR
+Embed HEX color.
+.RE
+.RS 4
+.TP
+\fB\-\-field TEXT\fR
+Embed field 'Name=Value[:inline]'.
+.RE
+.SS discord\-cli webhook fetch\-message
+.nf
+discord\-cli webhook fetch\-message [OPTIONS] MESSAGE_ID
+.fi
+.PP
+Fetch a message sent by a webhook (zero Gateway, no bot token required).
+.PP
+Arguments:
+.RS 4
+.TP
+\fBMESSAGE_ID\fR
+Message id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-url TEXT\fR
+Webhook URL (or DISCORD_WEBHOOK_URL env var).
+.RE
+.RS 4
+.TP
+\fB\-\-thread\-id INTEGER\fR
+Thread ID if message is in a thread.
 .RE
 .SS discord\-cli webhook info
 .nf
@@ -1184,6 +1605,101 @@ Set the channel id value.
 .TP
 \fB\-\-show\-secrets\fR
 Include unredacted webhook URL tokens in the output.
+.RE
+.SS discord\-cli webhook send
+.nf
+discord\-cli webhook send [OPTIONS]
+.fi
+.PP
+Send a message via a Discord webhook URL (zero Gateway, no bot token
+required).
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-url TEXT\fR
+Webhook URL (or DISCORD_WEBHOOK_URL env var).
+.RE
+.RS 4
+.TP
+\fB\-\-content TEXT\fR
+Message text, or '\-' to read from stdin.
+.RE
+.RS 4
+.TP
+\fB\-\-embed\-json TEXT\fR
+Embed JSON string or @filepath.
+.RE
+.RS 4
+.TP
+\fB\-\-embed\-file TEXT\fR
+Path to a JSON file containing an embed.
+.RE
+.RS 4
+.TP
+\fB\-\-file TEXT\fR
+Attachment file path (repeatable).
+.RE
+.RS 4
+.TP
+\fB\-\-username TEXT\fR
+Override webhook display username.
+.RE
+.RS 4
+.TP
+\fB\-\-avatar\-url TEXT\fR
+Override webhook avatar URL.
+.RE
+.RS 4
+.TP
+\fB\-\-thread\-id INTEGER\fR
+Post into an existing thread ID.
+.RE
+.RS 4
+.TP
+\fB\-\-thread\-name TEXT\fR
+Create a new forum/media thread with this name.
+.RE
+.RS 4
+.TP
+\fB\-\-template {alert|deploy|error|info|success|warning}\fR
+Built\-in embed preset. One of: alert, deploy, error, info, success,
+warning.
+.RE
+.RS 4
+.TP
+\fB\-\-title TEXT\fR
+Embed title.
+.RE
+.RS 4
+.TP
+\fB\-\-description TEXT\fR
+Embed description.
+.RE
+.RS 4
+.TP
+\fB\-\-color TEXT\fR
+Embed HEX color (e.g. #5865F2).
+.RE
+.RS 4
+.TP
+\fB\-\-field TEXT\fR
+Embed field 'Name=Value[:inline]'.
+.RE
+.RS 4
+.TP
+\fB\-\-split\fR
+Split content over 2000 chars.
+.RE
+.RS 4
+.TP
+\fB\-\-silent\fR
+Suppress push notifications.
+.RE
+.RS 4
+.TP
+\fB\-\-no\-wait\fR
+Fire\-and\-forget without returning message.
 .RE
 .SH ENVIRONMENT
 .TP
