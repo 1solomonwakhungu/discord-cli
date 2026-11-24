@@ -130,6 +130,14 @@ jobs:
       contents: write
       id-token: write
     steps:
+      - name: Validate version input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            exit 1
+          fi
       - uses: actions/checkout@v7
         with:
           ref: v${{ inputs.version }}
@@ -137,8 +145,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Verify the requested version
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          test "$(python -c 'from pathlib import Path; namespace = {}; exec(Path("src/discord_cli/__init__.py").read_text(), namespace); print(namespace["__version__"])')" = "${{ inputs.version }}"
+          test "$(python -c 'from pathlib import Path; namespace = {}; exec(Path("src/discord_cli/__init__.py").read_text(), namespace); print(namespace["__version__"])')" = "$VERSION"
       - name: Build distribution
         run: |
           python -m pip install --upgrade build
@@ -148,10 +158,11 @@ jobs:
       - name: Create GitHub Release if missing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
         run: |
-          gh release view "v${{ inputs.version }}" >/dev/null 2>&1 || \
-            gh release create "v${{ inputs.version }}" \
-              --title "v${{ inputs.version }}" \
+          gh release view "v${VERSION}" >/dev/null 2>&1 || \
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
               --generate-notes \
               dist/*.whl dist/*.tar.gz
 
@@ -167,12 +178,14 @@ jobs:
 
       - name: Update and commit the Scoop manifest
         working-directory: main-checkout
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           # Exit 3 means the dispatch re-published a version older than the one
           # the manifest already pins. That is a legitimate thing to do, so leave
           # the manifest pointing at the newer release rather than failing.
           set +e
-          python scripts/update_scoop_manifest.py --version "${{ inputs.version }}"
+          python scripts/update_scoop_manifest.py --version "$VERSION"
           status=$?
           set -e
           if [ "$status" -eq 3 ]; then
@@ -189,5 +202,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packaging/scoop/discordcli-agents.json
-          git commit -m "chore(scoop): update manifest to ${{ inputs.version }}"
+          git commit -m "chore(scoop): update manifest to ${VERSION}"
           git push origin HEAD:main

@@ -19,6 +19,10 @@ def plugins_group() -> None:
 @plugins_group.command("list")
 @click.pass_context
 def plugins_list(ctx: click.Context) -> None:
+    root_ctx = ctx.find_root()
+    root_cmd = root_ctx.command
+    if hasattr(root_cmd, "ensure_plugins_loaded") and not (ctx.obj or {}).get("no_plugins"):
+        root_cmd.ensure_plugins_loaded(root_ctx)
     human = (ctx.obj or {}).get("human", False)
     plugins = [
         {"name": plugin.name, "version": plugin.version, "module": plugin.module}

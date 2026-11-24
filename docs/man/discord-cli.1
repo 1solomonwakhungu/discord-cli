@@ -54,9 +54,9 @@ Emit minified single\-line JSON without whitespace.
 Comma\-separated dot\-paths to project from output data (e.g.
 id,name,author.name).
 .TP
-\fB\-\-max\-chars INTEGER\fR
-Truncate JSON output cleanly to fit within N characters while staying valid
-JSON.
+\fB\-\-max\-chars INTEGER RANGE\fR
+Truncate JSON output cleanly within N characters (min 256) while staying
+valid JSON.
 .TP
 \fB\-\-string\-ids\fR
 Serialize Discord 64\-bit snowflake IDs as strings for JS/TS safety.

@@ -113,7 +113,11 @@ def build_discord_files(file_paths: tuple[str, ...] | list[str]) -> list[discord
 
 
 def split_content(content: str, max_length: int = DISCORD_MAX_CONTENT_LENGTH) -> list[str]:
-    """Split long content into Discord-safe chunks (<= max_length), preferring newline boundaries."""
+    """Split long content into non-empty Discord-safe chunks (1 <= len <= max_length)."""
+    if max_length < 1:
+        raise ValueError("max_length must be >= 1")
+    if not content or not content.strip():
+        return []
     if len(content) <= max_length:
         return [content]
 
@@ -121,7 +125,8 @@ def split_content(content: str, max_length: int = DISCORD_MAX_CONTENT_LENGTH) ->
     remaining = content
     while remaining:
         if len(remaining) <= max_length:
-            chunks.append(remaining)
+            if remaining.strip():
+                chunks.append(remaining)
             break
         split_at = remaining.rfind("\n", 0, max_length)
         if split_at <= max_length // 2:
@@ -129,10 +134,13 @@ def split_content(content: str, max_length: int = DISCORD_MAX_CONTENT_LENGTH) ->
         if split_at <= 0:
             split_at = max_length
         chunk = remaining[:split_at].rstrip()
-        if not chunk:
-            chunk = remaining[:max_length]
+        if chunk and chunk.strip():
+            chunks.append(chunk)
+        else:
+            raw_chunk = remaining[:max_length]
+            if raw_chunk.strip():
+                chunks.append(raw_chunk)
             split_at = max_length
-        chunks.append(chunk)
         remaining = remaining[split_at:].lstrip("\n")
     return chunks
 

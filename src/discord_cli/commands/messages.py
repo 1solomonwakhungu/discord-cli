@@ -26,12 +26,18 @@ from discord_cli.models import (
 from discord_cli.registry import invoke, registry
 
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+_MAX_STEM_BYTES = 180
 
 
 def _safe_attachment_filename(attachment_id: int, filename: str) -> str:
-    base = Path(filename).name
-    cleaned = _SAFE_FILENAME_RE.sub("_", base).strip("._") or "attachment"
-    return f"{attachment_id}_{cleaned}"
+    base = Path(filename.replace("\\", "/")).name
+    stem, ext = Path(base).stem, Path(base).suffix
+    clean_stem = _SAFE_FILENAME_RE.sub("_", stem).strip("._") or "attachment"
+    clean_ext = _SAFE_FILENAME_RE.sub("", ext)[:16]
+    if clean_ext and not clean_ext.startswith("."):
+        clean_ext = f".{clean_ext}"
+    clean_stem = clean_stem[:_MAX_STEM_BYTES]
+    return f"{attachment_id}_{clean_stem}{clean_ext}"
 
 
 @registry.group("message")
