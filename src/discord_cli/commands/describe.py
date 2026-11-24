@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import click
 
-from discord_cli.errors import NotFoundError
+from discord_cli.errors import (
+    DiscordCliError,
+    NotFoundError,
+    classify_exception,
+    resolve_process_exit_code,
+    semantic_exit_codes_enabled,
+)
 from discord_cli.output import make_payload, print_output
-from discord_cli.policy import RISK_LEVELS
+from discord_cli.policy import RISK_LEVELS, enforce_group_allowlist, redact_secrets_in_text
 from discord_cli.registry import build_output_options, registry
 from discord_cli.schema import (
     build_command_schema,
@@ -14,6 +20,25 @@ from discord_cli.schema import (
     list_command_summaries,
     resolve_command_by_path,
 )
+
+
+def _check_group(ctx: click.Context, path: str) -> None:
+    try:
+        enforce_group_allowlist(path)
+    except DiscordCliError as exc:
+        obj = ctx.obj or {}
+        err = classify_exception(exc, message_sanitizer=redact_secrets_in_text)
+        print_output(
+            make_payload(error=err),
+            bool(obj.get("human", False)),
+            options=build_output_options(ctx),
+        )
+        raise SystemExit(
+            resolve_process_exit_code(
+                err,
+                semantic=semantic_exit_codes_enabled(bool(obj.get("semantic_exit_codes", False))),
+            )
+        ) from None
 
 
 def _emit_local(ctx: click.Context, data: object) -> None:
@@ -35,6 +60,7 @@ def _root_group(ctx: click.Context) -> click.Group:
 @click.pass_context
 def describe_group(ctx: click.Context) -> None:
     """Introspect CLI commands, JSON Schemas, risk levels, and required permissions."""
+    _check_group(ctx, "describe")
     if ctx.invoked_subcommand is None:
         root = _root_group(ctx)
         rows = list_command_summaries(root, compact=True)

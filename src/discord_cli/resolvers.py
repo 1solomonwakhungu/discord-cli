@@ -28,30 +28,41 @@ from discord_cli.models import (
     resolve_channel,
     resolve_role,
 )
+from discord_cli.policy import (
+    enforce_runtime_channel_allowlist,
+    is_ascii_snowflake,
+    parse_ascii_snowflake,
+)
 
-_CHANNEL_MENTION_RE = re.compile(r"^<#(\d+)>$")
-_ROLE_MENTION_RE = re.compile(r"^<@&(\d+)>$")
-_USER_MENTION_RE = re.compile(r"^<@!?(\d+)>$")
+_CHANNEL_MENTION_RE = re.compile(r"^<#([0-9]+)>$")
+_ROLE_MENTION_RE = re.compile(r"^<@&([0-9]+)>$")
+_USER_MENTION_RE = re.compile(r"^<@!?([0-9]+)>$")
 _MESSAGE_URL_RE = re.compile(
-    r"^https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)/?$"
+    r"^https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com/channels/([0-9]+)/([0-9]+)/([0-9]+)/?$"
 )
 
 
 class ResourceIdParamType(click.ParamType):
-    """Click parameter type accepting either a numeric snowflake ID or a human selector string."""
+    """Click parameter type accepting either a valid ASCII snowflake ID or a human selector string."""
 
     name = "resource"
 
     def convert(self, value: Any, param: Any, ctx: Any) -> int | str:
         if isinstance(value, int) and not isinstance(value, bool):
-            return value
+            parsed = parse_ascii_snowflake(value)
+            if parsed is None:
+                self.fail(f"Discord snowflake ID out of range: {value}", param, ctx)
+            return parsed
         if not isinstance(value, str):
             self.fail(f"Invalid resource identifier: {value!r}", param, ctx)
         stripped = value.strip()
         if not stripped:
             self.fail("Resource identifier cannot be empty.", param, ctx)
-        if stripped.isdigit():
-            return int(stripped)
+        if stripped.isascii() and stripped.isdigit():
+            parsed = parse_ascii_snowflake(stripped)
+            if parsed is None:
+                self.fail(f"Discord snowflake ID out of range: {stripped}", param, ctx)
+            return parsed
         return stripped
 
 
@@ -72,26 +83,28 @@ def parse_message_url(value: int | str) -> MessageUrlParts | None:
     match = _MESSAGE_URL_RE.match(value.strip())
     if not match:
         return None
+    g_raw, c_raw, m_raw = match.group(1), match.group(2), match.group(3)
+    if not (is_ascii_snowflake(g_raw) and is_ascii_snowflake(c_raw) and is_ascii_snowflake(m_raw)):
+        return None
     return MessageUrlParts(
-        guild_id=int(match.group(1)),
-        channel_id=int(match.group(2)),
-        message_id=int(match.group(3)),
+        guild_id=int(g_raw),
+        channel_id=int(c_raw),
+        message_id=int(m_raw),
     )
 
 
 def parse_snowflake(value: int | str) -> int | None:
-    """Return an integer snowflake if `value` is an int, digits, or Discord mention token."""
-    if isinstance(value, int) and not isinstance(value, bool):
-        return value
+    """Return a validated integer snowflake in (0, 2^64) for int, ASCII digits, or Discord mention."""
+    direct = parse_ascii_snowflake(value)
+    if direct is not None:
+        return direct
     if not isinstance(value, str):
         return None
     stripped = value.strip()
-    if stripped.isdigit():
-        return int(stripped)
     for pattern in (_CHANNEL_MENTION_RE, _ROLE_MENTION_RE, _USER_MENTION_RE):
         match = pattern.match(stripped)
         if match:
-            return int(match.group(1))
+            return parse_ascii_snowflake(match.group(1))
     return None
 
 
@@ -124,7 +137,9 @@ async def resolve_channel_selector(
     """Resolve a snowflake, `<#id>`, `#name`, `cat:Cat/#name`, or unambiguous channel name."""
     direct = parse_snowflake(selector)
     if direct is not None:
-        return await resolve_channel(guild, direct, client=client)
+        channel = await resolve_channel(guild, direct, client=client)
+        enforce_runtime_channel_allowlist(channel.id)
+        return channel
 
     raw = str(selector).strip()
     cat_filter: str | None = None
@@ -161,7 +176,7 @@ async def resolve_channel_selector(
 
     exact = [c for c in pool if c.name == channel_name]
     ci = [c for c in pool if c.name.lower() == channel_name.lower()]
-    return _disambiguate_matches(
+    resolved = _disambiguate_matches(
         raw,
         "channel",
         exact,
@@ -173,6 +188,8 @@ async def resolve_channel_selector(
             "category": getattr(getattr(c, "category", None), "name", None),
         },
     )
+    enforce_runtime_channel_allowlist(resolved.id)
+    return resolved
 
 
 async def resolve_category_selector(
@@ -186,7 +203,10 @@ async def resolve_category_selector(
         return None
     direct = parse_snowflake(selector)
     if direct is not None:
-        return await resolve_category(guild, direct, client=client)
+        cat = await resolve_category(guild, direct, client=client)
+        if cat is not None:
+            enforce_runtime_channel_allowlist(cat.id)
+        return cat
 
     raw = str(selector).strip()
     cat_name = raw[4:].strip() if raw.lower().startswith("cat:") else raw
@@ -200,13 +220,15 @@ async def resolve_category_selector(
 
     exact = [c for c in categories if c.name == cat_name]
     ci = [c for c in categories if c.name.lower() == cat_name.lower()]
-    return _disambiguate_matches(
+    resolved = _disambiguate_matches(
         raw,
         "category",
         exact,
         ci,
         lambda c: {"id": c.id, "name": c.name},
     )
+    enforce_runtime_channel_allowlist(resolved.id)
+    return resolved
 
 
 async def resolve_role_selector(
@@ -270,7 +292,6 @@ async def resolve_member_selector(
 
     q_lower = query.lower()
 
-    # Check cached guild.members first if populated.
     cached = list(getattr(guild, "members", []) or [])
     if cached:
         exact = [
@@ -300,7 +321,6 @@ async def resolve_member_selector(
                 },
             )
 
-    # REST fallback via /guilds/{guild_id}/members/search.
     if client is not None and (is_rest_mode(client) or not cached):
         route = discord.http.Route("GET", "/guilds/{guild_id}/members/search", guild_id=guild.id)
         raw_members = await client.http.request(route, params={"query": query, "limit": 25})
@@ -358,6 +378,10 @@ def resolve_message_ref(
     """Parse a message ID or Discord message URL into `(message_id, channel_ref, guild_id)`."""
     url_parts = parse_message_url(message_ref)
     if url_parts is not None:
+        if guild_id is not None and guild_id != url_parts.guild_id:
+            raise CliError(
+                f"Message URL targets guild {url_parts.guild_id}, which conflicts with --guild {guild_id}."
+            )
         return (
             url_parts.message_id,
             channel_ref if channel_ref is not None else url_parts.channel_id,

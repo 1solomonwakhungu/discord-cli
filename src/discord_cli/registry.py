@@ -31,6 +31,8 @@ from discord_cli.policy import (
     evaluate_policy,
     redact_secrets_in_text,
     resolve_policy_config,
+    stricter_max_mutations,
+    stricter_policy,
     write_audit_log,
 )
 from discord_cli.resolvers import RESOURCE_ID
@@ -190,7 +192,12 @@ def _make_override_callback(dest: str) -> Callable[[click.Context, click.Paramet
         if value is None or value is False:
             return value
         ctx.ensure_object(dict)
-        ctx.obj[key] = value
+        if key == "policy":
+            ctx.obj[key] = stricter_policy(ctx.obj.get(key), str(value))
+        elif key == "max_mutations":
+            ctx.obj[key] = stricter_max_mutations(ctx.obj.get(key), int(value))
+        else:
+            ctx.obj[key] = value
         return value
 
     return _cb

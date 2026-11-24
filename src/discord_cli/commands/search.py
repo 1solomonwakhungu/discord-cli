@@ -73,12 +73,18 @@ async def action_search_messages(
     if channel_id is not None:
         channels: list[Any] = [await resolve_channel_selector(guild, channel_id, client=client)]
     else:
+        from discord_cli.policy import get_allowed_channels
+
         all_channels = await fetch_guild_channels(guild, client=client)
+        allow_channels = get_allowed_channels()
         channels = [
             c
             for c in all_channels
-            if isinstance(c, discord.TextChannel)
-            or getattr(c, "type", None) == discord.ChannelType.text
+            if (
+                isinstance(c, discord.TextChannel)
+                or getattr(c, "type", None) == discord.ChannelType.text
+            )
+            and (allow_channels is None or c.id in allow_channels)
         ]
 
     query_lower = query.lower()

@@ -20,9 +20,38 @@ from typing import NamedTuple
 import click
 
 from discord_cli.errors import CliError
-from discord_cli.registry import CommandRegistry
+from discord_cli.output import make_payload, print_output
+from discord_cli.registry import CommandRegistry, _check_policy_and_dry_run, build_output_options
 
 logger = logging.getLogger(__name__)
+
+
+def _wrap_plugin_command_policy(cmd: click.Command) -> None:
+    """Wrap a third-party plugin command so policy ceilings & allowlists apply before execution."""
+    if isinstance(cmd, click.Group):
+        for sub in cmd.commands.values():
+            _wrap_plugin_command_policy(sub)
+        if not cmd.invoke_without_command:
+            return
+    if getattr(cmd, "_discord_cli_policy_wrapped", False):
+        return
+    orig_invoke = cmd.invoke
+
+    def _gated_invoke(ctx: click.Context) -> object:
+        obj = ctx.obj or {}
+        plan, _ = _check_policy_and_dry_run(ctx, obj.get("guild_id"), dict(ctx.params))
+        if plan is not None:
+            print_output(
+                make_payload(plan),
+                bool(obj.get("human", False)),
+                options=build_output_options(ctx),
+            )
+            raise SystemExit(0)
+        return orig_invoke(ctx)
+
+    cmd.invoke = _gated_invoke  # type: ignore[method-assign]
+    cmd._discord_cli_policy_wrapped = True
+
 
 PLUGIN_GROUP = "discord_cli.plugins"
 
@@ -120,6 +149,10 @@ def load_plugins(registry: CommandRegistry, root: click.Group) -> list[PluginInf
                 )
             )
             continue
+        for added_name in set(registry._groups.keys()) - before_groups:
+            added_group = registry._groups.get(added_name)
+            if added_group is not None:
+                _wrap_plugin_command_policy(added_group)
         _loaded.append(PluginInfo(name=ep.name, version=_entry_point_version(ep), module=ep.value))
 
     registry.attach_all(root)
