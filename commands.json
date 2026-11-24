@@ -6,7 +6,9 @@
   "global_options": [
     {"name": "--token", "type": "string", "description": "Discord bot token (overrides env/.env)"},
     {"name": "--guild", "type": "int", "description": "Target guild ID (for multi-guild bots)"},
-    {"name": "--human", "type": "flag", "description": "Human-readable table output (default: JSON)"}
+    {"name": "--human", "type": "flag", "description": "Human-readable table output (default: JSON)"},
+    {"name": "--gateway", "type": "flag", "description": "Use WebSocket Gateway instead of REST-first default"},
+    {"name": "--no-plugins", "type": "flag", "description": "Disable loading third-party discord_cli.plugins entry points"}
   ],
   "command_groups": [
     {
@@ -120,10 +122,10 @@
       "name": "webhook",
       "description": "Manage webhooks",
       "commands": [
-        {"name": "list", "description": "List webhooks", "args": [], "options": [{"name": "--channel", "type": "int"}]},
-        {"name": "create", "description": "Create webhook", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--name", "required": true}]},
+        {"name": "list", "description": "List webhooks", "args": [], "options": [{"name": "--channel", "type": "int"}, {"name": "--show-secrets", "type": "flag"}]},
+        {"name": "create", "description": "Create webhook", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--name", "required": true}, {"name": "--show-secrets", "type": "flag"}]},
         {"name": "delete", "description": "Delete webhook", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": []},
-        {"name": "info", "description": "Webhook details", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": []}
+        {"name": "info", "description": "Webhook details", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": [{"name": "--show-secrets", "type": "flag"}]}
       ]
     },
     {
@@ -151,7 +153,7 @@
       "name": "search",
       "description": "Search server content",
       "commands": [
-        {"name": "messages", "description": "Search messages", "args": [{"name": "query", "required": true}], "options": [{"name": "--channel-id", "type": "int"}, {"name": "--limit", "type": "int", "default": 25}]},
+        {"name": "messages", "description": "Search messages", "args": [{"name": "query", "required": true}], "options": [{"name": "--channel-id", "type": "int"}, {"name": "--limit", "type": "int", "default": 25}, {"name": "--scan-limit", "type": "int", "default": 500}]},
         {"name": "members", "description": "Search members", "args": [{"name": "query", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 25}]}
       ]
     },

@@ -8,7 +8,7 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_channel, get_guild
+from discord_cli.models import get_guild, is_rest_mode, resolve_channel
 from discord_cli.registry import invoke, registry
 
 
@@ -83,7 +83,7 @@ async def action_invite_create(
     **_: Any,
 ) -> dict[str, str]:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not hasattr(channel, "create_invite"):
         raise CliError(f"Channel {channel_id} does not support invites")
     invite = await channel.create_invite(max_age=max_age, max_uses=max_uses, temporary=temporary)
@@ -93,6 +93,13 @@ async def action_invite_create(
 async def action_invite_delete(
     client: discord.Client, guild_id: int | None, code: str, **_: Any
 ) -> dict[str, str]:
+    if is_rest_mode(client):
+        try:
+            await client.http.delete_invite(code, reason="discord_cli invite delete")
+        except discord.NotFound as exc:
+            raise CliError(f"Invite {code} not found") from exc
+        return {"deleted": code}
+
     guild = await get_guild(client, guild_id)
     for invite in await guild.invites():
         if invite.code == code:

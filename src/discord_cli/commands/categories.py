@@ -8,7 +8,7 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import channel_to_dict, get_category, get_guild
+from discord_cli.models import channel_to_dict, fetch_guild_channels, get_guild, resolve_category
 from discord_cli.registry import invoke, registry
 
 
@@ -51,9 +51,13 @@ def category_edit(
 
 async def action_category_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
+    categories = list(guild.categories)
+    if not categories:
+        all_channels = await fetch_guild_channels(guild, client=client)
+        categories = [c for c in all_channels if isinstance(c, discord.CategoryChannel)]
     return {
         "guild_id": guild.id,
-        "categories": [channel_to_dict(c, detailed=True) for c in guild.categories],
+        "categories": [channel_to_dict(c, detailed=True) for c in categories],
     }
 
 
@@ -73,7 +77,7 @@ async def action_category_delete(
     client: discord.Client, guild_id: int | None, category_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    category = get_category(guild, category_id)
+    category = await resolve_category(guild, category_id, client=client)
     data = channel_to_dict(category)  # type: ignore[arg-type]
     await category.delete(reason="discord_cli category delete")  # type: ignore[union-attr]
     return {"deleted": data}
@@ -83,7 +87,7 @@ async def action_category_edit(
     client: discord.Client, guild_id: int | None, category_id: int, **kwargs: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    category = get_category(guild, category_id)
+    category = await resolve_category(guild, category_id, client=client)
     edits = {
         k: v
         for k, v in {"name": kwargs.get("name"), "position": kwargs.get("position")}.items()

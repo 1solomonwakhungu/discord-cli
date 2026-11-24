@@ -53,7 +53,8 @@ class TestPrintHuman:
     def test_error_payload_prints_message(self, capsys):
         print_human({"ok": False, "error": {"type": "CliError", "message": "no permission"}})
         captured = capsys.readouterr()
-        assert "no permission" in captured.out
+        assert "no permission" in captured.err
+        assert captured.out == ""
 
     def test_list_of_dicts_renders_table(self, capsys):
         payload = {

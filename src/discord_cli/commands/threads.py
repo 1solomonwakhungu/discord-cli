@@ -8,7 +8,7 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_channel, get_guild
+from discord_cli.models import fetch_guild_channels, get_guild, iso, resolve_channel
 from discord_cli.registry import invoke, registry
 
 
@@ -82,25 +82,48 @@ def thread_members(ctx: click.Context, thread_id: int) -> None:
     invoke(ctx, action_thread_members, thread_id=thread_id)
 
 
+def _thread_to_summary(thread: discord.Thread) -> dict[str, Any]:
+    return {
+        "id": thread.id,
+        "name": thread.name,
+        "channel_id": thread.parent_id,
+        "archived": thread.archived,
+        "locked": thread.locked,
+        "member_count": thread.member_count,
+    }
+
+
 async def action_thread_list(
     client: discord.Client, guild_id: int | None, channel_id: int | None, **_: Any
 ) -> list[dict[str, Any]]:
     guild = await get_guild(client, guild_id)
+    threads: list[discord.Thread] = []
+
+    active_fetcher = getattr(guild, "active_threads", None)
+    if callable(active_fetcher):
+        try:
+            fetched = await active_fetcher()
+            if isinstance(fetched, list):
+                threads = fetched
+        except (TypeError, discord.HTTPException):
+            threads = []
+
+    if not threads:
+        # Fallback to channel cache (text + forum channels).
+        channels = await fetch_guild_channels(guild, client=client)
+        for channel in channels:
+            for thread in getattr(channel, "threads", []):
+                threads.append(thread)
+
     result: list[dict[str, Any]] = []
-    for channel in guild.text_channels:
-        if channel_id is not None and channel.id != channel_id:
+    seen: set[int] = set()
+    for thread in threads:
+        if thread.id in seen:
             continue
-        for thread in channel.threads:
-            result.append(
-                {
-                    "id": thread.id,
-                    "name": thread.name,
-                    "channel_id": thread.parent_id,
-                    "archived": thread.archived,
-                    "locked": thread.locked,
-                    "member_count": thread.member_count,
-                }
-            )
+        if channel_id is not None and thread.parent_id != channel_id:
+            continue
+        seen.add(thread.id)
+        result.append(_thread_to_summary(thread))
     return result
 
 
@@ -114,7 +137,7 @@ async def action_thread_create(
     **_: Any,
 ) -> dict[str, Any]:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not isinstance(channel, discord.TextChannel):
         raise CliError("Threads can only be created in text channels")
     thread = await channel.create_thread(
@@ -136,10 +159,27 @@ def get_thread(guild: discord.Guild, thread_id: int) -> discord.Thread:
     return thread
 
 
+async def resolve_thread(
+    client: discord.Client, guild: discord.Guild, thread_id: int
+) -> discord.Thread:
+    """Resolve an active or archived thread via cache first, then REST fetch."""
+    thread = guild.get_thread(thread_id)
+    if isinstance(thread, discord.Thread):
+        return thread
+    try:
+        fetched = await resolve_channel(guild, thread_id, client=client)
+    except CliError:
+        raise CliError(f"Thread {thread_id} not found") from None
+    if not isinstance(fetched, discord.Thread):
+        raise CliError(f"Thread {thread_id} not found")
+    return fetched
+
+
 async def action_thread_delete(
     client: discord.Client, guild_id: int | None, thread_id: int, **_: Any
 ) -> dict[str, int]:
-    thread = get_thread(await get_guild(client, guild_id), thread_id)
+    guild = await get_guild(client, guild_id)
+    thread = await resolve_thread(client, guild, thread_id)
     await thread.delete(reason="discord_cli thread delete")
     return {"deleted": thread_id}
 
@@ -147,7 +187,8 @@ async def action_thread_delete(
 async def action_thread_archive(
     client: discord.Client, guild_id: int | None, thread_id: int, **_: Any
 ) -> dict[str, int]:
-    thread = get_thread(await get_guild(client, guild_id), thread_id)
+    guild = await get_guild(client, guild_id)
+    thread = await resolve_thread(client, guild, thread_id)
     await thread.edit(archived=True)
     return {"archived": thread_id}
 
@@ -155,7 +196,8 @@ async def action_thread_archive(
 async def action_thread_unarchive(
     client: discord.Client, guild_id: int | None, thread_id: int, **_: Any
 ) -> dict[str, int]:
-    thread = get_thread(await get_guild(client, guild_id), thread_id)
+    guild = await get_guild(client, guild_id)
+    thread = await resolve_thread(client, guild, thread_id)
     await thread.edit(archived=False)
     return {"unarchived": thread_id}
 
@@ -163,6 +205,21 @@ async def action_thread_unarchive(
 async def action_thread_members(
     client: discord.Client, guild_id: int | None, thread_id: int, **_: Any
 ) -> list[dict[str, Any]]:
-    thread = get_thread(await get_guild(client, guild_id), thread_id)
+    guild = await get_guild(client, guild_id)
+    thread = await resolve_thread(client, guild, thread_id)
     members = await thread.fetch_members()
-    return [{"id": member.id, "name": member.name} for member in members]  # type: ignore[attr-defined]
+    rows: list[dict[str, Any]] = []
+    for member in members:
+        name = getattr(member, "name", None)
+        if name is None:
+            cached = guild.get_member(member.id)
+            if cached is not None:
+                name = cached.name
+        rows.append(
+            {
+                "id": member.id,
+                "name": name,
+                "joined_at": iso(getattr(member, "joined_at", None)),
+            }
+        )
+    return rows

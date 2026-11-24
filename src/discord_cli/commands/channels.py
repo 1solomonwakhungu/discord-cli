@@ -8,7 +8,13 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import channel_to_dict, get_category, get_channel, get_guild
+from discord_cli.models import (
+    channel_to_dict,
+    fetch_guild_channels,
+    get_guild,
+    resolve_category,
+    resolve_channel,
+)
 from discord_cli.registry import TRI_STATE_BOOL, invoke, registry
 
 
@@ -110,12 +116,13 @@ def channel_info(ctx: click.Context, channel_id: int) -> None:
 
 async def action_channel_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    return {"guild_id": guild.id, "channels": [channel_to_dict(c) for c in guild.channels]}
+    channels = await fetch_guild_channels(guild, client=client)
+    return {"guild_id": guild.id, "channels": [channel_to_dict(c) for c in channels]}
 
 
 async def action_channel_create(client: discord.Client, guild_id: int | None, **kwargs: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    category = get_category(guild, kwargs.get("category"))
+    category = await resolve_category(guild, kwargs.get("category"), client=client)
     common = {
         "category": category,
         "position": kwargs.get("position"),
@@ -137,12 +144,12 @@ async def action_channel_create(client: discord.Client, guild_id: int | None, **
     elif ctype == "stage":
         channel = await guild.create_stage_channel(name, **common)  # type: ignore[arg-type,assignment]
     elif ctype == "forum":
-        channel = await guild.create_forum_channel(  # type: ignore[attr-defined]
+        channel = await guild.create_forum(  # type: ignore[assignment]
             name,
             topic=kwargs.get("topic"),
             nsfw=kwargs.get("nsfw", False),
             slowmode_delay=kwargs.get("slowmode") or 0,
-            **common,
+            **common,  # type: ignore[arg-type]
         )
     else:
         raise CliError(f"Unsupported channel type: {ctype}")
@@ -153,7 +160,7 @@ async def action_channel_delete(
     client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     data = channel_to_dict(channel)
     await channel.delete(reason="discord_cli channel delete")
     return {"deleted": data}
@@ -163,7 +170,7 @@ async def action_channel_edit(
     client: discord.Client, guild_id: int | None, channel_id: int, **kwargs: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     edits: dict[str, Any] = {}
     if kwargs.get("name") is not None:
         edits["name"] = kwargs["name"]
@@ -185,8 +192,8 @@ async def action_channel_move(
     client: discord.Client, guild_id: int | None, channel_id: int, category: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
-    new_category = get_category(guild, category)
+    channel = await resolve_channel(guild, channel_id, client=client)
+    new_category = await resolve_category(guild, category, client=client)
     await channel.edit(category=new_category, reason="discord_cli channel move")  # type: ignore[call-arg,union-attr]
     return {"updated": channel_to_dict(channel, detailed=True)}
 
@@ -195,4 +202,4 @@ async def action_channel_info(
     client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    return channel_to_dict(get_channel(guild, channel_id), detailed=True)
+    return channel_to_dict(await resolve_channel(guild, channel_id, client=client), detailed=True)

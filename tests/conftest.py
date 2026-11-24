@@ -379,7 +379,14 @@ def make_guild(
 
     guild.fetch_member = AsyncMock(side_effect=lambda mid: _get_member(mid))
     guild.fetch_members = MagicMock(side_effect=lambda **_: async_iter(members))
+    guild.fetch_channels = AsyncMock(return_value=[*channels, *categories])
+    guild.fetch_roles = AsyncMock(return_value=roles)
+    guild.fetch_emojis = AsyncMock(return_value=guild.emojis)
+    guild.fetch_stickers = AsyncMock(return_value=guild.stickers)
+    guild.fetch_channel = AsyncMock(side_effect=lambda cid: _get_channel_or_thread(cid))
+    guild.active_threads = AsyncMock(return_value=list(threads or []))
     guild.bans = MagicMock(side_effect=lambda **_: async_iter(bans or []))
+    guild.ban = AsyncMock(return_value=None)
     guild.invites = AsyncMock(return_value=invites or [])
     guild.webhooks = AsyncMock(return_value=webhooks or [])
     guild.unban = AsyncMock(return_value=None)
@@ -388,7 +395,7 @@ def make_guild(
     guild.create_text_channel = AsyncMock()
     guild.create_voice_channel = AsyncMock()
     guild.create_stage_channel = AsyncMock()
-    guild.create_forum_channel = AsyncMock()
+    guild.create_forum = AsyncMock()
     guild.create_role = AsyncMock()
     guild.create_custom_emoji = AsyncMock()
     guild.estimate_pruned_members = AsyncMock(return_value=0)
@@ -402,10 +409,14 @@ def make_client(guild: Any) -> MagicMock:
     client.guilds = [guild]
     client.get_guild = MagicMock(side_effect=lambda gid: guild if gid == guild.id else None)
     client.fetch_guild = AsyncMock(return_value=guild)
+    client.fetch_guilds = MagicMock(side_effect=lambda **_: async_iter([guild]))
+    client.fetch_channel = AsyncMock(side_effect=lambda cid: guild.get_channel_or_thread(cid))
     client.fetch_user = AsyncMock(return_value=make_user())
     client.fetch_webhook = AsyncMock(return_value=make_webhook())
     client.http = MagicMock()
     client.http.request = AsyncMock(return_value=[])
+    client.http.get_members = AsyncMock(return_value=[])
+    client.http.delete_invite = AsyncMock(return_value=None)
     return client
 
 
@@ -495,7 +506,7 @@ def patch_run_action(monkeypatch, fake_client_box):
     CLI output stays byte-for-byte what a real run would produce.
     """
 
-    def _fake_run_action(action, kwargs, human=False, token=None):
+    def _fake_run_action(action, kwargs, human=False, token=None, **extra):
         client = fake_client_box.get("client")
         try:
             result = asyncio.run(action(client, **kwargs))

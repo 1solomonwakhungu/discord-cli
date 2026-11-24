@@ -1,10 +1,4 @@
-"""Tests for discord_cli.client: the Discord bot lifecycle used to run one action.
-
-Command tests bypass this module entirely (they patch discord_cli.registry.run_action),
-so this file directly exercises run_action, run_bot, _run_async and ManagementClient
-to keep client.py itself covered. Network connections are avoided by monkeypatching
-ManagementClient.start at the class level instead of hitting a real gateway.
-"""
+"""Tests for discord_cli.client: REST-first default and opt-in Gateway lifecycle."""
 
 from __future__ import annotations
 
@@ -22,6 +16,10 @@ async def ok_action(client, **kwargs):
     return {"msg": "hi"}
 
 
+async def list_action(client, **kwargs):
+    return [{"id": 1}]
+
+
 async def failing_action(client, **kwargs):
     raise ValueError("kaboom")
 
@@ -32,6 +30,57 @@ class TestFallbackIntents:
         assert intents.guilds is True
         assert intents.reactions is True
         assert intents != discord.Intents.all()
+
+
+class TestRestClient:
+    async def test_rest_default_uses_login_and_closes(self, monkeypatch):
+        login_calls = []
+
+        async def fake_login(self, token):
+            login_calls.append(token)
+
+        monkeypatch.setattr(client_mod.RestClient, "login", fake_login)
+
+        result, error = await client_mod._run_async(ok_action, {}, "fake-token")
+
+        assert login_calls == ["fake-token"]
+        assert result == {"msg": "hi"}
+        assert error is None
+
+    async def test_rest_action_http_exception_formatted(self, monkeypatch):
+        monkeypatch.setattr(client_mod.RestClient, "login", AsyncMock(return_value=None))
+        response = SimpleNamespace(status=403, reason="Forbidden")
+        http_exc = discord.HTTPException(response, {"code": 50013, "message": "Missing Permissions"})
+
+        async def http_failing_action(client, **kwargs):
+            raise http_exc
+
+        result, error = await client_mod._run_async(http_failing_action, {}, "fake-token")
+
+        assert result is None
+        assert error["type"] == "HTTPException"
+        assert error["status"] == 403
+        assert error["code"] == 50013
+
+    async def test_rest_login_failure_returned_as_error(self, monkeypatch):
+        monkeypatch.setattr(
+            client_mod.RestClient, "login", AsyncMock(side_effect=RuntimeError("bad token"))
+        )
+
+        result, error = await client_mod._run_async(ok_action, {}, "fake-token")
+
+        assert result is None
+        assert error == {"type": "RuntimeError", "message": "bad token"}
+
+    async def test_rest_session_closes_on_error(self):
+        c = client_mod.RestClient()
+        c.login = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with pytest.raises(RuntimeError):
+            async with client_mod.rest_session(c, "fake-token"):
+                pass
+
+        assert c.is_closed()
 
 
 class TestManagementClientOnReady:
@@ -64,14 +113,16 @@ class TestManagementClientOnReady:
         assert c.error["code"] == 50013
 
 
-class TestRunAsync:
+class TestRunAsyncGateway:
     async def test_success_returns_result_with_no_error(self, monkeypatch):
         async def fake_start(self, token):
             await self.on_ready()
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
-        result, error = await client_mod._run_async(ok_action, {}, "fake-token-for-testing")
+        result, error = await client_mod._run_async(
+            ok_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert result == {"msg": "hi"}
         assert error is None
@@ -82,7 +133,9 @@ class TestRunAsync:
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
-        result, error = await client_mod._run_async(failing_action, {}, "fake-token-for-testing")
+        result, error = await client_mod._run_async(
+            failing_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert result is None
         assert error == {"type": "ValueError", "message": "kaboom"}
@@ -95,11 +148,29 @@ class TestRunAsync:
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
-        result, error = await client_mod._run_async(ok_action, {}, "fake-token-for-testing")
+        result, error = await client_mod._run_async(
+            ok_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert error is None
         assert result["msg"] == "hi"
         assert "non-privileged intents" in result["warning"]
+
+    async def test_fallback_warning_emitted_to_stderr_for_list_results(self, monkeypatch, capsys):
+        async def fake_start(self, token):
+            if self.intents == discord.Intents.all():
+                raise discord.PrivilegedIntentsRequired(shard_id=None)
+            await self.on_ready()
+
+        monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
+
+        result, error = await client_mod._run_async(
+            list_action, {}, "fake-token-for-testing", use_gateway=True
+        )
+
+        assert error is None
+        assert result == [{"id": 1}]
+        assert "non-privileged intents" in capsys.readouterr().err
 
     async def test_returns_last_privileged_intents_error_if_both_attempts_fail(self, monkeypatch):
         async def fake_start(self, token):
@@ -107,7 +178,9 @@ class TestRunAsync:
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
-        result, error = await client_mod._run_async(ok_action, {}, "fake-token-for-testing")
+        result, error = await client_mod._run_async(
+            ok_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert result is None
         assert error["type"] == "PrivilegedIntentsRequired"
@@ -118,20 +191,44 @@ class TestRunAsync:
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
-        result, error = await client_mod._run_async(ok_action, {}, "fake-token-for-testing")
+        result, error = await client_mod._run_async(
+            ok_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert result is None
         assert error == {"type": "RuntimeError", "message": "network unreachable"}
 
+    async def test_env_var_enables_gateway_transport(self, monkeypatch):
+        monkeypatch.setenv("DISCORD_CLI_TRANSPORT", "gateway")
 
-class TestRunBot:
-    def test_runs_async_via_asyncio_run(self, monkeypatch):
         async def fake_start(self, token):
             await self.on_ready()
 
         monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
 
+        result, error = await client_mod._run_async(ok_action, {}, "fake-token")
+        assert result == {"msg": "hi"}
+        assert error is None
+
+
+class TestRunBot:
+    def test_runs_async_via_asyncio_run_rest_default(self, monkeypatch):
+        monkeypatch.setattr(client_mod.RestClient, "login", AsyncMock(return_value=None))
+
         result, error = client_mod.run_bot(ok_action, {}, "fake-token-for-testing")
+
+        assert result == {"msg": "hi"}
+        assert error is None
+
+    def test_runs_async_via_gateway_when_requested(self, monkeypatch):
+        async def fake_start(self, token):
+            await self.on_ready()
+
+        monkeypatch.setattr(client_mod.ManagementClient, "start", fake_start)
+
+        result, error = client_mod.run_bot(
+            ok_action, {}, "fake-token-for-testing", use_gateway=True
+        )
 
         assert result == {"msg": "hi"}
         assert error is None
