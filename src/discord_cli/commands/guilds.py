@@ -13,6 +13,7 @@ from discord_cli.models import (
     fetch_guild_channels,
     fetch_guild_roles,
     get_guild,
+    invalidate_guild_cache,
     is_rest_mode,
     iso,
     member_to_dict,
@@ -163,6 +164,7 @@ async def action_guild_edit(client: discord.Client, guild_id: int | None, **kwar
     if not edits:
         raise CliError("No edits provided")
     await guild.edit(**edits, reason="discord_cli guild edit")
+    invalidate_guild_cache(client, guild.id)
     return {"updated": await action_guild_info(client, guild.id)}
 
 

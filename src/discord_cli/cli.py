@@ -23,12 +23,13 @@ from discord_cli.commands import (
     threads,  # noqa: F401 - imports register command groups
     webhooks,  # noqa: F401 - imports register command groups
 )
+from discord_cli.output import MIN_MAX_CHARS
 from discord_cli.plugins import load_plugins, plugins_disabled_by_env
 from discord_cli.registry import OUTPUT_FORMATS, registry
 
 
 class AliasedGroup(click.Group):
-    """Click group that resolves shorthand aliases and loads plugins lazily on execution."""
+    """Click group that resolves shorthand aliases and loads plugins lazily on demand."""
 
     ALIASES: dict[str, str] = {
         "invite": "invites",
@@ -40,6 +41,13 @@ class AliasedGroup(click.Group):
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self._plugins_loaded = False
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        # Detect --no-plugins BEFORE Click runs eager --help / list_commands callbacks.
+        if "--no-plugins" in args:
+            ctx.ensure_object(dict)
+            ctx.obj["no_plugins"] = True
+        return super().parse_args(ctx, args)
 
     def ensure_plugins_loaded(self, ctx: click.Context | None = None) -> None:
         if self._plugins_loaded:
@@ -114,10 +122,10 @@ class AliasedGroup(click.Group):
 )
 @click.option(
     "--max-chars",
-    type=int,
+    type=click.IntRange(min=MIN_MAX_CHARS),
     default=None,
     envvar="DISCORD_CLI_MAX_CHARS",
-    help="Truncate JSON output cleanly to fit within N characters while staying valid JSON.",
+    help=f"Truncate JSON output cleanly within N characters (min {MIN_MAX_CHARS}) while staying valid JSON.",
 )
 @click.option(
     "--string-ids",
@@ -169,7 +177,7 @@ def main(
             "guild_id": guild_id,
             "human": human,
             "gateway": gateway,
-            "no_plugins": no_plugins,
+            "no_plugins": no_plugins or bool(ctx.obj.get("no_plugins", False)),
             "compact": compact,
             "fields": fields,
             "max_chars": max_chars,
@@ -179,13 +187,11 @@ def main(
             "output_path": output_path,
         }
     )
-    if not no_plugins and isinstance(ctx.command, AliasedGroup):
-        ctx.command.ensure_plugins_loaded(ctx)
 
 
-# Attach built-in command groups and lock their names against plugin shadowing.
+# Attach built-in command groups and lock their names + aliases against plugin shadowing.
 registry.attach_all(main)
-registry.lock_builtins()
+registry.lock_builtins(extra_protected=AliasedGroup.ALIASES.keys())
 
 
 if __name__ == "__main__":

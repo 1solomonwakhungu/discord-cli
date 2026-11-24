@@ -232,7 +232,6 @@ class TestZeroGatewayWebhookExecution:
         fake_wh.fetch_message = AsyncMock(return_value=msg)
         fake_wh.delete_message = AsyncMock(return_value=None)
 
-        monkeypatch.setattr("discord_cli.commands.webhooks.validate_remote_url", lambda u: u)
         monkeypatch.setattr("discord.Webhook.from_url", MagicMock(return_value=fake_wh))
 
         url = "https://discord.com/api/webhooks/123456/fake-token"

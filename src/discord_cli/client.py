@@ -13,6 +13,7 @@ import discord
 
 from discord_cli.config import load_config
 from discord_cli.errors import DiscordCliError
+from discord_cli.models import redact_webhook_url
 from discord_cli.output import OutputOptions, make_payload, print_output
 
 Action = Callable[..., Awaitable[Any]]
@@ -20,7 +21,10 @@ HttpAction = Callable[..., Awaitable[Any]]
 
 
 def _format_exception(exc: Exception) -> dict[str, Any]:
-    error: dict[str, Any] = {"type": exc.__class__.__name__, "message": str(exc)}
+    error: dict[str, Any] = {
+        "type": exc.__class__.__name__,
+        "message": str(redact_webhook_url(str(exc))),
+    }
     if isinstance(exc, discord.HTTPException):
         error.update({"status": exc.status, "code": exc.code})
     return error

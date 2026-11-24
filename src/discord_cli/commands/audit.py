@@ -79,9 +79,10 @@ def _resolve_audit_action(action_name: str | None) -> Any:
     if not action_name:
         return None
     normalized = action_name.strip().lower()
-    if hasattr(discord.AuditLogAction, normalized):
-        return getattr(discord.AuditLogAction, normalized)
-    raise CliError(f"Unknown audit log action: {action_name}")
+    try:
+        return discord.AuditLogAction[normalized]
+    except KeyError:
+        raise CliError(f"Unknown audit log action: {action_name}") from None
 
 
 async def action_audit_list(

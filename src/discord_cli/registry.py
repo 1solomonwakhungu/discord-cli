@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Callable
 
 import click
@@ -9,20 +10,25 @@ import click
 from discord_cli.client import Action, HttpAction, run_action, run_http_action
 from discord_cli.errors import CliError, DiscordCliError
 from discord_cli.models import bool_value
-from discord_cli.output import OutputOptions, parse_fields
+from discord_cli.output import MIN_MAX_CHARS, OutputOptions, parse_fields
 
 OUTPUT_FORMATS = ("json", "jsonl", "csv", "table", "markdown", "raw")
 
-# Hidden leaf-level mirrors of global options so flags work BOTH before AND after subcommands
-# (e.g. `discord-cli channel list --human` or `discord-cli channel list --compact --fields id,name`).
+# Hidden mirrors of global options so flags work BOTH before AND after subcommands
+# (e.g. `discord-cli channel list --human` or `discord-cli doctor --human`).
 _SUBCOMMAND_GLOBAL_SPECS: tuple[tuple[tuple[str, ...], str, dict[str, Any]], ...] = (
     (("--token",), "_global_token", {"default": None}),
     (("--guild",), "_global_guild_id", {"type": int, "default": None}),
     (("--human",), "_global_human", {"is_flag": True, "default": False}),
     (("--gateway",), "_global_gateway", {"is_flag": True, "default": False}),
+    (("--no-plugins",), "_global_no_plugins", {"is_flag": True, "default": False}),
     (("--compact",), "_global_compact", {"is_flag": True, "default": False}),
     (("--fields",), "_global_fields", {"default": None}),
-    (("--max-chars",), "_global_max_chars", {"type": int, "default": None}),
+    (
+        ("--max-chars",),
+        "_global_max_chars",
+        {"type": click.IntRange(min=MIN_MAX_CHARS), "default": None},
+    ),
     (("--string-ids",), "_global_string_ids", {"is_flag": True, "default": False}),
     (
         ("--format", "-f"),
@@ -51,13 +57,7 @@ class TriStateBoolParamType(click.ParamType):
 TRI_STATE_BOOL = TriStateBoolParamType()
 
 
-def _attach_position_independent_options(cmd: click.Command) -> None:
-    """Attach hidden global options to leaf commands so global flags work after subcommands."""
-    if isinstance(cmd, click.Group):
-        for sub in cmd.commands.values():
-            _attach_position_independent_options(sub)
-        return
-
+def _attach_options_to_command(cmd: click.Command) -> None:
     existing_opts = {
         flag
         for param in cmd.params
@@ -81,6 +81,17 @@ def _attach_position_independent_options(cmd: click.Command) -> None:
                 **kwargs,
             )
         )
+
+
+def _attach_position_independent_options(cmd: click.Command) -> None:
+    """Attach hidden global options to leaf commands and invoke-without-command groups."""
+    if isinstance(cmd, click.Group):
+        if cmd.invoke_without_command:
+            _attach_options_to_command(cmd)
+        for sub in cmd.commands.values():
+            _attach_position_independent_options(sub)
+        return
+    _attach_options_to_command(cmd)
 
 
 def _make_override_callback(dest: str) -> Callable[[click.Context, click.Parameter, Any], Any]:
@@ -128,14 +139,37 @@ class CommandRegistry:
     def __init__(self) -> None:
         self._groups: dict[str, click.Group] = {}
         self._builtin_names: set[str] = set()
+        self._builtin_subcommands: dict[str, dict[str, click.Command]] = {}
+        self._locked: bool = False
 
-    def lock_builtins(self) -> None:
-        """Mark all currently registered groups as protected built-in command groups."""
-        self._builtin_names = set(self._groups.keys())
+    def lock_builtins(self, extra_protected: Iterable[str] = ()) -> None:
+        """Mark all currently registered groups, subcommands, and aliases as protected."""
+        self._builtin_names = set(self._groups.keys()) | set(extra_protected)
+        self._builtin_subcommands = {
+            name: dict(group.commands) for name, group in self._groups.items()
+        }
+        self._locked = True
 
     @property
     def builtin_names(self) -> frozenset[str]:
         return frozenset(self._builtin_names)
+
+    def check_builtin_integrity(self) -> list[str]:
+        """Restore any built-in subcommands mutated by a plugin and return violation descriptions."""
+        violations: list[str] = []
+        for group_name, orig_commands in self._builtin_subcommands.items():
+            group = self._groups.get(group_name)
+            if group is None:
+                continue
+            for sub_name, orig_cmd in orig_commands.items():
+                if group.commands.get(sub_name) is not orig_cmd:
+                    violations.append(f"{group_name} {sub_name}")
+                    group.commands[sub_name] = orig_cmd
+            for sub_name in list(group.commands.keys()):
+                if sub_name not in orig_commands:
+                    violations.append(f"{group_name} {sub_name}")
+                    del group.commands[sub_name]
+        return violations
 
     def group(self, name: str, **kwargs: Any) -> Callable[[Callable[..., Any]], click.Group]:
         """Decorator that defines a new top-level command group and registers it by name."""
@@ -143,6 +177,8 @@ class CommandRegistry:
         def decorator(func: Callable[..., Any]) -> click.Group:
             if name in self._builtin_names:
                 raise CliError(f"Plugin cannot overwrite built-in command group {name!r}")
+            if self._locked and name in self._groups:
+                raise CliError(f"Plugin group name {name!r} is already registered")
             command_group = click.group(name=name, **kwargs)(func)
             self._groups[name] = command_group
             return command_group

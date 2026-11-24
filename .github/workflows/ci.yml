@@ -96,18 +96,18 @@ jobs:
       - name: Prepare coverage artifact
         shell: bash
         run: |
-          # Move coverage.xml to a named artifact per matrix axis if present
+          # Move coverage.xml to a unique named artifact per matrix axis if present
           if [ -f coverage.xml ]; then
-            mv coverage.xml coverage-${{ matrix.os }}.xml
-            ls -la coverage-${{ matrix.os }}.xml || true
+            mv coverage.xml coverage-${{ matrix.os }}-${{ matrix.python-version }}.xml
+            ls -la coverage-${{ matrix.os }}-${{ matrix.python-version }}.xml || true
           else
             echo "No coverage.xml found (skipping artifact upload)"
           fi
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-${{ matrix.os }}
-          path: coverage-${{ matrix.os }}.xml
+          name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
+          path: coverage-${{ matrix.os }}-${{ matrix.python-version }}.xml
   build:
     runs-on: ubuntu-latest
     steps:

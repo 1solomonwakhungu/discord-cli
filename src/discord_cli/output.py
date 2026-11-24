@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
 _MAX_TABLE_COLUMNS = 8
 _JS_MAX_SAFE_INTEGER = (1 << 53) - 1
+MIN_MAX_CHARS = 256
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
 @dataclass(frozen=True)
@@ -76,7 +78,7 @@ def stringify_ids(obj: Any, *, key_hint: str | None = None) -> Any:
         if (key_hint is not None and _is_id_key(key_hint)) or abs(obj) > _JS_MAX_SAFE_INTEGER:
             return str(obj)
         return obj
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [stringify_ids(item, key_hint=key_hint) for item in obj]
     if isinstance(obj, dict):
         return {k: stringify_ids(v, key_hint=str(k)) for k, v in obj.items()}
@@ -109,6 +111,24 @@ def _project_dict(row: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any
     return projected
 
 
+def _find_primary_list_key(data: dict[str, Any], *, require_dicts: bool = False) -> str | None:
+    """Pick the largest non-empty list key in `data` (falling back to any matching list)."""
+    candidates: list[tuple[int, str]] = []
+    for key, value in data.items():
+        if not isinstance(value, list):
+            continue
+        if require_dicts and not all(isinstance(row, dict) for row in value):
+            continue
+        candidates.append((len(value), key))
+    if not candidates:
+        return None
+    # Prefer non-empty lists, choosing the largest one.
+    non_empty = [c for c in candidates if c[0] > 0]
+    if non_empty:
+        return max(non_empty, key=lambda item: item[0])[1]
+    return candidates[0][1]
+
+
 def project_fields(data: Any, fields: tuple[str, ...]) -> Any:
     """Project comma-separated dot-paths onto a dict or list of dicts inside `data`."""
     if not fields:
@@ -116,16 +136,7 @@ def project_fields(data: Any, fields: tuple[str, ...]) -> Any:
     if isinstance(data, list):
         return [_project_dict(item, fields) if isinstance(item, dict) else item for item in data]
     if isinstance(data, dict):
-        # If dict wraps a primary list of dicts (e.g. {"guild_id": 1, "channels": [...]}),
-        # project the list items while preserving scalar wrapper keys.
-        list_key = next(
-            (
-                k
-                for k, v in data.items()
-                if isinstance(v, list) and all(isinstance(row, dict) for row in v)
-            ),
-            None,
-        )
+        list_key = _find_primary_list_key(data, require_dicts=True)
         if list_key is not None and not any(f in data for f in fields):
             copied = dict(data)
             copied[list_key] = [_project_dict(row, fields) for row in data[list_key]]
@@ -153,14 +164,13 @@ def _truncate_strings(obj: Any, max_str_len: int) -> Any:
 def enforce_max_chars(
     payload: dict[str, Any], max_chars: int, *, compact: bool = False
 ) -> dict[str, Any]:
-    """Ensure serialized JSON stays <= max_chars while ALWAYS remaining valid JSON."""
+    """Ensure serialized JSON stays <= max_chars (for max_chars >= 256) while remaining valid JSON."""
     if max_chars <= 0:
         return payload
     serialized = _serialize_json(payload, compact=compact)
     if len(serialized) <= max_chars:
         return payload
 
-    # Deep copy via JSON round-trip so we never mutate caller's dicts.
     working: dict[str, Any] = json.loads(json.dumps(payload, default=str))
     meta: dict[str, Any] = dict(working.get("meta") or {})
     meta["truncated"] = True
@@ -169,22 +179,39 @@ def enforce_max_chars(
         f"Output exceeded --max-chars {max_chars}. Re-run with narrower --fields or smaller --limit."
     )
 
+    if not working.get("ok", True):
+        err = working.get("error")
+        err_type = err.get("type", "Error") if isinstance(err, dict) else "Error"
+        err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+        for cap in (200, 80, 40, 20, 8):
+            candidate_err: dict[str, Any] = {
+                "type": str(err_type)[:40],
+                "message": _truncate_strings(str(err_msg), cap),
+            }
+            candidate = {"ok": False, "error": candidate_err, "meta": {"truncated": True}}
+            if len(_serialize_json(candidate, compact=compact)) <= max_chars:
+                return candidate
+        return {
+            "ok": False,
+            "error": {"type": "Error", "message": "..."},
+            "meta": {"truncated": True},
+        }
+
     data = working.get("data")
     omitted = 0
 
-    # Strategy 1: Trim trailing items from the primary list in data.
+    # Strategy 1: Trim trailing items from the largest non-empty list in data.
     target_list: list[Any] | None = None
-    if isinstance(data, list):
+    if isinstance(data, list) and data:
         target_list = data
     elif isinstance(data, dict):
-        list_key = next((k for k, v in data.items() if isinstance(v, list)), None)
-        if list_key is not None:
+        list_key = _find_primary_list_key(data)
+        if list_key is not None and data[list_key]:
             target_list = data[list_key]
 
     if target_list is not None and len(target_list) > 0:
-        # Binary search for the largest prefix that fits within max_chars.
         full_items = list(target_list)
-        lo, hi = 0, len(full_items)
+        lo, hi = 1, len(full_items)
         best = 0
         while lo <= hi:
             mid = (lo + hi) // 2
@@ -196,8 +223,21 @@ def enforce_max_chars(
                 lo = mid + 1
             else:
                 hi = mid - 1
-        target_list[:] = full_items[:best]
-        omitted = len(full_items) - best
+        if best > 0:
+            target_list[:] = full_items[:best]
+            meta["omitted_items"] = len(full_items) - best
+            working["meta"] = meta
+            return working
+        # Even 1 full item didn't fit — try keeping the first item with truncated strings before dropping all!
+        for str_cap in (400, 200, 80, 32):
+            target_list[:] = [_truncate_strings(full_items[0], str_cap)]
+            omitted = len(full_items) - 1
+            meta["omitted_items"] = omitted
+            working["meta"] = meta
+            if len(_serialize_json(working, compact=compact)) <= max_chars:
+                return working
+        target_list[:] = []
+        omitted = len(full_items)
         meta["omitted_items"] = omitted
         working["meta"] = meta
         if len(_serialize_json(working, compact=compact)) <= max_chars:
@@ -210,19 +250,15 @@ def enforce_max_chars(
         if len(_serialize_json(working, compact=compact)) <= max_chars:
             return working
 
-    # Strategy 3: Hard fallback keeping valid minimal envelope.
+    # Strategy 3: Minimal valid JSON envelope.
     minimal: dict[str, Any] = {
-        "ok": working.get("ok", True),
+        "ok": True,
         "data": None,
         "meta": {"truncated": True, "omitted_items": omitted, "max_chars": max_chars},
     }
-    if not working.get("ok", True) and "error" in working:
-        minimal = {
-            "ok": False,
-            "error": _truncate_strings(working["error"], 80),
-            "meta": {"truncated": True},
-        }
-    return minimal
+    if len(_serialize_json(minimal, compact=compact)) <= max_chars:
+        return minimal
+    return {"ok": True, "data": None, "meta": {"truncated": True}}
 
 
 def shape_payload(payload: dict[str, Any], options: OutputOptions) -> dict[str, Any]:
@@ -258,10 +294,18 @@ def _format_cell(value: Any) -> str:
     return str(value)
 
 
+def sanitize_csv_cell(value: Any) -> str:
+    """Neutralize spreadsheet formula injection (=, +, -, @, tab, CR) in CSV cells."""
+    text = _format_cell(value)
+    if text and text[0] in _CSV_FORMULA_PREFIXES:
+        return "'" + text
+    return text
+
+
 def _extract_table_rows(data: Any) -> tuple[list[dict[str, Any]] | None, str | None]:
     if isinstance(data, dict):
-        list_key = next((key for key, value in data.items() if isinstance(value, list)), None)
-        if list_key and data[list_key] and all(isinstance(row, dict) for row in data[list_key]):
+        list_key = _find_primary_list_key(data, require_dicts=True)
+        if list_key and data[list_key]:
             return data[list_key], str(list_key)
     elif isinstance(data, list) and data and all(isinstance(row, dict) for row in data):
         return data, None
@@ -310,7 +354,7 @@ def _format_csv(data: Any) -> str:
     writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for row in rows:
-        writer.writerow({k: _format_cell(row.get(k)) for k in fieldnames})
+        writer.writerow({k: sanitize_csv_cell(row.get(k)) for k in fieldnames})
     return buf.getvalue()
 
 
@@ -364,14 +408,16 @@ def _build_table(
     *,
     max_columns: int | None = _MAX_TABLE_COLUMNS,
 ) -> Table:
-    table = table_cls(title=title)
+    from rich.text import Text
+
+    table = table_cls(title=Text(title) if title is not None else None)
     keys = list(rows[0].keys())
     if max_columns is not None:
         keys = keys[:max_columns]
     for key in keys:
-        table.add_column(str(key))
+        table.add_column(Text(str(key)))
     for row in rows:
-        table.add_row(*[_format_cell(row.get(key)) for key in keys])
+        table.add_row(*[Text(_format_cell(row.get(key))) for key in keys])
     return table
 
 
@@ -379,12 +425,16 @@ def print_human(payload: dict[str, Any], *, all_columns: bool = False) -> None:
     try:
         from rich.console import Console
         from rich.table import Table
+        from rich.text import Text
     except ImportError:
         print_json(payload)
         return
 
     if not payload.get("ok"):
-        Console(stderr=True).print(f"[red]Error:[/red] {payload['error'].get('message')}")
+        err_msg = str((payload.get("error") or {}).get("message", ""))
+        text = Text("Error: ", style="red")
+        text.append(err_msg)
+        Console(stderr=True).print(text)
         return
 
     console = Console()

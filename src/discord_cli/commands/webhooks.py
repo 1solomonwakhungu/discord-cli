@@ -21,7 +21,7 @@ from discord_cli.models import (
     get_guild,
     message_to_dict,
     resolve_channel,
-    validate_remote_url,
+    validate_webhook_url,
     webhook_to_dict,
 )
 from discord_cli.registry import invoke, invoke_http, registry
@@ -31,7 +31,7 @@ def _resolve_webhook_url(url: str | None) -> str:
     resolved = url or os.environ.get("DISCORD_WEBHOOK_URL")
     if not resolved:
         raise CliError("Webhook URL required via --url or DISCORD_WEBHOOK_URL")
-    return validate_remote_url(resolved.strip())
+    return validate_webhook_url(resolved)
 
 
 @registry.group("webhook")
@@ -387,7 +387,16 @@ async def action_webhook_send(
         if resolved_content is not None and split
         else ([resolved_content] if resolved_content is not None else [None])
     )
+    if not chunks:
+        if embed is None and not file_paths:
+            raise CliError("Message content cannot be empty or whitespace-only")
+        chunks = [None]
+    if len(chunks) > 1 and thread_name is not None and not wait:
+        raise CliError(
+            "--split with --thread-name requires waiting for the created thread (omit --no-wait)"
+        )
 
+    active_thread_id = thread_id
     async with aiohttp.ClientSession() as session:
         webhook = discord.Webhook.from_url(webhook_url, session=session)
         sent_messages: list[dict[str, Any]] = []
@@ -403,14 +412,25 @@ async def action_webhook_send(
                 send_kwargs["username"] = username
             if avatar_url is not None:
                 send_kwargs["avatar_url"] = avatar_url
-            if thread_id is not None:
-                send_kwargs["thread"] = discord.Object(id=thread_id)
+            if active_thread_id is not None:
+                send_kwargs["thread"] = discord.Object(id=active_thread_id)
             elif idx == 0 and thread_name is not None:
                 send_kwargs["thread_name"] = thread_name
 
-            msg = await webhook.send(**send_kwargs)
+            try:
+                msg = await webhook.send(**send_kwargs)
+            except Exception as exc:
+                if sent_messages:
+                    sent_ids = [m["id"] for m in sent_messages]
+                    raise CliError(
+                        f"Failed sending chunk {idx + 1}/{len(chunks)} "
+                        f"(already sent message IDs: {sent_ids}): {exc}"
+                    ) from exc
+                raise
             if msg is not None:
                 sent_messages.append(message_to_dict(msg))
+                if idx == 0 and thread_name is not None and active_thread_id is None:
+                    active_thread_id = msg.channel.id
 
     if not wait:
         return {"sent": True, "chunks": len(chunks)}
