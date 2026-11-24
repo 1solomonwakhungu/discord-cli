@@ -10,7 +10,7 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_channel, get_guild
+from discord_cli.models import get_guild, resolve_channel
 from discord_cli.registry import invoke, registry
 
 
@@ -44,7 +44,7 @@ async def action_export_channel(
     **_: Any,
 ) -> dict[str, Any]:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not hasattr(channel, "history"):
         raise CliError(f"Channel {channel_id} does not support message history")
 

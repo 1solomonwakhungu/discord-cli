@@ -90,10 +90,10 @@ Fine-grained permission control.
 
 ### webhook
 Manage webhooks for automation.
-- `webhook list [--channel ID]` — List webhooks
-- `webhook create --channel ID --name "name"` — Create webhook
+- `webhook list [--channel ID] [--show-secrets]` — List webhooks (tokens redacted by default)
+- `webhook create --channel ID --name "name" [--show-secrets]` — Create webhook
 - `webhook delete <id>` — Delete webhook
-- `webhook info <id>` — Webhook details
+- `webhook info <id> [--show-secrets]` — Webhook details
 
 ### invites
 Manage server invites (`invite` also works as a shorthand alias).
@@ -112,7 +112,7 @@ Manage forum and thread channels.
 
 ### search
 Search server content.
-- `search messages <query> [--channel-id ID] [--limit N]` — Search messages
+- `search messages <query> [--channel-id ID] [--limit N] [--scan-limit N]` — Search messages
 - `search members <query> [--limit N]` — Search members
 
 ### export
@@ -179,5 +179,7 @@ done
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--token` | Discord bot token (overrides env/.env) | From env/.env |
-| `--guild ID` | Target guild ID (for multi-guild bots) | First available |
+| `--guild ID` | Target guild ID (required for multi-guild bots) | Single guild |
 | `--human` | Human-readable table output | JSON (default) |
+| `--gateway` | Use WebSocket Gateway instead of REST-first default | Off (REST) |
+| `--no-plugins` | Disable loading third-party plugins | Off |

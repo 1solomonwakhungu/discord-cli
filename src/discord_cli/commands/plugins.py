@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import click
 
 from discord_cli.output import make_payload, print_output
-from discord_cli.plugins import loaded_plugins
+from discord_cli.plugins import loaded_plugins, plugin_errors
 from discord_cli.registry import registry
 
 
@@ -22,4 +24,16 @@ def plugins_list(ctx: click.Context) -> None:
         {"name": plugin.name, "version": plugin.version, "module": plugin.module}
         for plugin in loaded_plugins()
     ]
-    print_output(make_payload({"plugins": plugins}), human)
+    data: dict[str, Any] = {"plugins": plugins}
+    errors = plugin_errors()
+    if errors:
+        data["errors"] = [
+            {
+                "name": err.name,
+                "module": err.module,
+                "error_type": err.error_type,
+                "message": err.message,
+            }
+            for err in errors
+        ]
+    print_output(make_payload(data), human)

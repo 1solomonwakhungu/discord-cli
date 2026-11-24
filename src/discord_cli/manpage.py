@@ -454,10 +454,19 @@ def render_manpage(
 
 
 def build_manpage() -> str:
-    """Render the man page for the project's own CLI at its current version."""
+    """Render the man page for the project's own CLI at its current version (core commands only)."""
     from discord_cli import __version__
     from discord_cli.cli import main
 
+    # Snapshot only built-in commands so locally installed third-party plugins
+    # never contaminate the generated man page.
+    if hasattr(main, "_plugins_loaded"):
+        saved = main._plugins_loaded
+        main._plugins_loaded = True
+        try:
+            return render_manpage(main, prog_name="discord-cli", version=__version__)
+        finally:
+            main._plugins_loaded = saved
     return render_manpage(main, prog_name="discord-cli", version=__version__)
 
 

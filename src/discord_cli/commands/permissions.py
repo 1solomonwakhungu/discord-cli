@@ -10,12 +10,12 @@ import discord
 from discord_cli.errors import CliError
 from discord_cli.models import (
     channel_to_dict,
-    get_channel,
     get_guild,
     get_member,
-    get_role,
     overwrite_to_dict,
     parse_permissions,
+    resolve_channel,
+    resolve_role,
 )
 from discord_cli.registry import invoke, registry
 
@@ -73,7 +73,7 @@ async def action_permissions_list(
     client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not hasattr(channel, "overwrites"):
         raise CliError("Channel does not support permission overwrites")
     return {
@@ -93,10 +93,14 @@ async def action_permissions_set(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if (role_id is None) == (user_id is None):
         raise CliError("Specify exactly one of --role or --user")
-    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)  # type: ignore[arg-type]
+    target = (
+        await resolve_role(guild, role_id, client=client)
+        if role_id is not None
+        else await get_member(guild, user_id)  # type: ignore[arg-type]
+    )
     allow_perms = parse_permissions(allow) or discord.Permissions.none()
     deny_perms = parse_permissions(deny) or discord.Permissions.none()
     overwrite = discord.PermissionOverwrite.from_pair(allow_perms, deny_perms)
@@ -113,9 +117,13 @@ async def action_permissions_reset(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if (role_id is None) == (user_id is None):
         raise CliError("Specify exactly one of --role or --user")
-    target = get_role(guild, role_id) if role_id is not None else await get_member(guild, user_id)  # type: ignore[arg-type]
+    target = (
+        await resolve_role(guild, role_id, client=client)
+        if role_id is not None
+        else await get_member(guild, user_id)  # type: ignore[arg-type]
+    )
     await channel.set_permissions(target, overwrite=None, reason="discord_cli permissions reset")  # type: ignore[union-attr]
     return {"reset": {"target_id": target.id, "target_name": getattr(target, "name", str(target))}}

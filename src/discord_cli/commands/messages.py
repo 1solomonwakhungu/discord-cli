@@ -8,7 +8,13 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import embed_from_json, get_channel, get_guild, get_message, message_to_dict
+from discord_cli.models import (
+    embed_from_json,
+    get_guild,
+    get_message,
+    message_to_dict,
+    resolve_channel,
+)
 from discord_cli.registry import invoke, registry
 
 
@@ -135,7 +141,7 @@ async def action_message_list(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not hasattr(channel, "history"):
         raise CliError("Channel does not support reading messages")
     if limit <= 0:
@@ -158,7 +164,7 @@ async def action_message_send(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not hasattr(channel, "send"):
         raise CliError("Channel does not support sending messages")
     embed = embed_from_json(embed_json) if embed_json else None
@@ -177,7 +183,7 @@ async def action_message_edit(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    message = await get_message(guild, channel_id, message_id)
+    message = await get_message(guild, channel_id, message_id, client=client)
     edited = await message.edit(content=content)
     return {"updated": message_to_dict(edited)}
 
@@ -186,7 +192,7 @@ async def action_message_delete(
     client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    message = await get_message(guild, channel_id, message_id)
+    message = await get_message(guild, channel_id, message_id, client=client)
     data = message_to_dict(message)
     await message.delete()
     return {"deleted": data}
@@ -202,7 +208,7 @@ async def action_message_purge(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = get_channel(guild, channel_id)
+    channel = await resolve_channel(guild, channel_id, client=client)
     if not isinstance(channel, (discord.TextChannel, discord.Thread)):
         raise CliError("Channel does not support purge")
 
@@ -221,14 +227,14 @@ async def action_message_fetch(
     client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    return message_to_dict(await get_message(guild, channel_id, message_id))
+    return message_to_dict(await get_message(guild, channel_id, message_id, client=client))
 
 
 async def action_message_pin(
     client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    message = await get_message(guild, channel_id, message_id)
+    message = await get_message(guild, channel_id, message_id, client=client)
     await message.pin(reason="discord_cli message pin")
     return {"pinned": message_to_dict(message)}
 
@@ -237,7 +243,7 @@ async def action_message_unpin(
     client: discord.Client, guild_id: int | None, message_id: int, channel_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    message = await get_message(guild, channel_id, message_id)
+    message = await get_message(guild, channel_id, message_id, client=client)
     await message.unpin(reason="discord_cli message unpin")
     return {"unpinned": message_to_dict(message)}
 
@@ -251,6 +257,6 @@ async def action_message_react(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    message = await get_message(guild, channel_id, message_id)
+    message = await get_message(guild, channel_id, message_id, client=client)
     await message.add_reaction(emoji)
     return {"reacted": {"message_id": message.id, "emoji": emoji}}
