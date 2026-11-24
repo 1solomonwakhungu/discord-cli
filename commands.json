@@ -8,7 +8,14 @@
     {"name": "--guild", "type": "int", "description": "Target guild ID (for multi-guild bots)"},
     {"name": "--human", "type": "flag", "description": "Human-readable table output (default: JSON)"},
     {"name": "--gateway", "type": "flag", "description": "Use WebSocket Gateway instead of REST-first default"},
-    {"name": "--no-plugins", "type": "flag", "description": "Disable loading third-party discord_cli.plugins entry points"}
+    {"name": "--no-plugins", "type": "flag", "description": "Disable loading third-party discord_cli.plugins entry points"},
+    {"name": "--compact", "type": "flag", "description": "Emit minified single-line JSON without whitespace"},
+    {"name": "--fields", "type": "string", "description": "Comma-separated dot-paths to project from output data"},
+    {"name": "--max-chars", "type": "int", "description": "Truncate JSON output cleanly within N characters while staying valid JSON"},
+    {"name": "--string-ids", "type": "flag", "description": "Serialize 64-bit snowflake IDs as strings for JS/TS safety"},
+    {"name": "--format", "type": "string", "choices": ["json", "jsonl", "csv", "table", "markdown", "raw"], "description": "Output format"},
+    {"name": "--quiet", "type": "flag", "description": "Print only primary resource IDs (one per line)"},
+    {"name": "--output", "type": "string", "description": "Write formatted output atomically to a file path"}
   ],
   "command_groups": [
     {
@@ -50,7 +57,7 @@
       "name": "member",
       "description": "Moderate and manage members",
       "commands": [
-        {"name": "list", "description": "List all members", "args": [], "options": []},
+        {"name": "list", "description": "List all members", "args": [], "options": [{"name": "--limit", "type": "int"}, {"name": "--after", "type": "int"}]},
         {"name": "info", "description": "Detailed member info", "args": [{"name": "member_id", "type": "int", "required": true}], "options": []},
         {"name": "kick", "description": "Kick a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}]},
         {"name": "ban", "description": "Ban a member", "args": [{"name": "member_id", "type": "int", "required": true}], "options": [{"name": "--reason"}, {"name": "--delete-message-days", "type": "int", "default": 0}]},
@@ -66,14 +73,18 @@
       "description": "Manage channel messages",
       "commands": [
         {"name": "list", "description": "List recent messages in a channel", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 20}, {"name": "--before", "type": "int"}, {"name": "--after", "type": "int"}]},
-        {"name": "send", "description": "Send a message", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--content"}, {"name": "--embed-json"}]},
+        {"name": "send", "description": "Send a message", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--content"}, {"name": "--embed-json"}, {"name": "--embed-file"}, {"name": "--file"}, {"name": "--reply-to", "type": "int"}, {"name": "--silent", "type": "flag"}, {"name": "--split", "type": "flag"}]},
         {"name": "edit", "description": "Edit a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--content", "required": true}]},
         {"name": "delete", "description": "Delete a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
         {"name": "purge", "description": "Bulk delete messages", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "required": true}, {"name": "--user", "type": "int"}, {"name": "--contains"}]},
         {"name": "fetch", "description": "Get message content", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
         {"name": "pin", "description": "Pin a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
         {"name": "unpin", "description": "Unpin a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
-        {"name": "react", "description": "React to a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--emoji", "required": true}]}
+        {"name": "pins", "description": "List pinned messages", "args": [{"name": "channel_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 50}]},
+        {"name": "publish", "description": "Crosspost announcement message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}]},
+        {"name": "download", "description": "Download message attachments", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--out", "required": true}]},
+        {"name": "react", "description": "React to a message", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--emoji", "required": true}]},
+        {"name": "unreact", "description": "Remove a reaction", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--emoji", "required": true}, {"name": "--user", "type": "int"}]}
       ]
     },
     {
@@ -124,8 +135,13 @@
       "commands": [
         {"name": "list", "description": "List webhooks", "args": [], "options": [{"name": "--channel", "type": "int"}, {"name": "--show-secrets", "type": "flag"}]},
         {"name": "create", "description": "Create webhook", "args": [], "options": [{"name": "--channel", "type": "int", "required": true}, {"name": "--name", "required": true}, {"name": "--show-secrets", "type": "flag"}]},
+        {"name": "edit", "description": "Edit webhook", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": [{"name": "--name"}, {"name": "--channel", "type": "int"}, {"name": "--show-secrets", "type": "flag"}]},
         {"name": "delete", "description": "Delete webhook", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": []},
-        {"name": "info", "description": "Webhook details", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": [{"name": "--show-secrets", "type": "flag"}]}
+        {"name": "info", "description": "Webhook details", "args": [{"name": "webhook_id", "type": "int", "required": true}], "options": [{"name": "--show-secrets", "type": "flag"}]},
+        {"name": "send", "description": "Send message via webhook URL (zero Gateway)", "args": [], "options": [{"name": "--url"}, {"name": "--content"}, {"name": "--embed-json"}, {"name": "--embed-file"}, {"name": "--file"}, {"name": "--username"}, {"name": "--avatar-url"}, {"name": "--thread-id", "type": "int"}, {"name": "--thread-name"}, {"name": "--template", "choices": ["alert", "deploy", "error", "info", "success", "warning"]}, {"name": "--title"}, {"name": "--description"}, {"name": "--color"}, {"name": "--field"}, {"name": "--split", "type": "flag"}, {"name": "--silent", "type": "flag"}, {"name": "--no-wait", "type": "flag"}]},
+        {"name": "edit-message", "description": "Edit webhook message (zero Gateway)", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--url"}, {"name": "--thread-id", "type": "int"}, {"name": "--content"}, {"name": "--embed-json"}, {"name": "--embed-file"}, {"name": "--template", "choices": ["alert", "deploy", "error", "info", "success", "warning"]}, {"name": "--title"}, {"name": "--description"}, {"name": "--color"}, {"name": "--field"}]},
+        {"name": "delete-message", "description": "Delete webhook message (zero Gateway)", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--url"}, {"name": "--thread-id", "type": "int"}]},
+        {"name": "fetch-message", "description": "Fetch webhook message (zero Gateway)", "args": [{"name": "message_id", "type": "int", "required": true}], "options": [{"name": "--url"}, {"name": "--thread-id", "type": "int"}]}
       ]
     },
     {
@@ -169,6 +185,28 @@
       "description": "Inspect third-party plugins discovered via the discord_cli.plugins entry-point group",
       "commands": [
         {"name": "list", "description": "List loaded plugins", "args": [], "options": []}
+      ]
+    },
+    {
+      "name": "audit",
+      "description": "Inspect guild audit logs for moderation and security triage",
+      "commands": [
+        {"name": "list", "description": "List recent guild audit log entries", "args": [], "options": [{"name": "--limit", "type": "int", "default": 50}, {"name": "--action"}, {"name": "--user", "type": "int"}, {"name": "--before", "type": "int"}, {"name": "--after", "type": "int"}]},
+        {"name": "user", "description": "List audit entries performed by or targeting a user", "args": [{"name": "user_id", "type": "int", "required": true}], "options": [{"name": "--limit", "type": "int", "default": 50}]}
+      ]
+    },
+    {
+      "name": "doctor",
+      "description": "Diagnose bot token, privileged intents, role hierarchy, and permissions",
+      "commands": [
+        {"name": "check", "description": "Run connectivity, intent, hierarchy, and permission diagnostics", "args": [], "options": [{"name": "--channel", "type": "int"}]}
+      ]
+    },
+    {
+      "name": "api",
+      "description": "Call any Discord REST API v10 endpoint directly",
+      "commands": [
+        {"name": "request", "description": "Execute a raw authenticated Discord REST API v10 request", "args": [{"name": "method", "required": true}, {"name": "endpoint", "required": true}], "options": [{"name": "--json-body"}, {"name": "--query"}, {"name": "--reason"}]}
       ]
     }
   ]

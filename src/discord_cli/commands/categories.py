@@ -95,5 +95,5 @@ async def action_category_edit(
     }
     if not edits:
         raise CliError("No edits provided")
-    await category.edit(**edits, reason="discord_cli category edit")  # type: ignore[union-attr]
-    return {"updated": channel_to_dict(category, detailed=True)}  # type: ignore[arg-type]
+    edited = await category.edit(**edits, reason="discord_cli category edit")  # type: ignore[union-attr]
+    return {"updated": channel_to_dict(edited or category, detailed=True)}  # type: ignore[arg-type]

@@ -166,8 +166,8 @@ async def action_role_edit(
         edits["hoist"] = kwargs["hoist"]
     if not edits:
         raise CliError("No edits provided")
-    await role.edit(**edits, reason="discord_cli role edit")
-    return {"updated": role_to_dict(role, rest_mode=is_rest_mode(client))}
+    edited = await role.edit(**edits, reason="discord_cli role edit")
+    return {"updated": role_to_dict(edited or role, rest_mode=is_rest_mode(client))}
 
 
 async def action_role_assign(

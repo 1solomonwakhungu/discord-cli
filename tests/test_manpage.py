@@ -107,11 +107,11 @@ class TestCommandCoverage:
                 if isinstance(sub, click.Group):
                     for leaf_name in sub.commands:
                         path = f"{group_name} {sub_name} {leaf_name}"
-                        if f".SS discord\\-cli {path}" not in rendered:
+                        if f".SS discord\\-cli {manpage.escape(path)}" not in rendered:
                             missing.append(path)
                 else:
                     path = f"{group_name} {sub_name}"
-                    if f".SS discord\\-cli {path}" not in rendered:
+                    if f".SS discord\\-cli {manpage.escape(path)}" not in rendered:
                         missing.append(path)
         assert missing == []
 

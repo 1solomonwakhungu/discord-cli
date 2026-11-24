@@ -8,7 +8,6 @@ import json
 import re
 import socket
 import urllib.parse
-import urllib.request
 from typing import Any
 
 import aiohttp
@@ -17,10 +16,28 @@ import discord
 from discord_cli.errors import CliError
 
 _WEBHOOK_URL_RE = re.compile(
-    r"^(https?://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/api(?:/v\d+)?/webhooks/\d+/)([^/?#]+)(.*)$"
+    r"(https?://(?:(?:www|canary|ptb)\.)?discord(?:app)?\.com/api(?:/v\d+)?/webhooks/\d+/)([^/?#\s'\"<>]+)",
+    re.IGNORECASE,
 )
+_DISCORD_WEBHOOK_HOSTS = frozenset(
+    {
+        "discord.com",
+        "www.discord.com",
+        "ptb.discord.com",
+        "canary.discord.com",
+        "discordapp.com",
+        "www.discordapp.com",
+        "ptb.discordapp.com",
+        "canary.discordapp.com",
+    }
+)
+_CGNAT_V4 = ipaddress.ip_network("100.64.0.0/10")
+_6TO4_RELAY_V4 = ipaddress.ip_network("192.88.99.0/24")
+_SITE_LOCAL_V6 = ipaddress.ip_network("fec0::/10")
+
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MiB safety cap for remote image downloads
 _MAX_REDIRECTS = 5
+_CHUNK_SIZE = 65536
 
 
 def is_rest_mode(client: discord.Client | None) -> bool:
@@ -35,6 +52,15 @@ def _session_cache(client: discord.Client | None) -> dict[Any, Any] | None:
     if isinstance(cache, dict):
         return cache
     return None
+
+
+def invalidate_guild_cache(client: discord.Client | None, guild_id: int) -> None:
+    """Drop cached guild entries after a guild-level mutation."""
+    cache = _session_cache(client)
+    if cache is None:
+        return
+    cache.pop(("guild", guild_id), None)
+    cache.pop("default_guild", None)
 
 
 def bool_value(value: str | bool | None) -> bool | None:
@@ -93,14 +119,25 @@ def iso(value: Any) -> Any:
     return value
 
 
-def redact_webhook_url(url: Any) -> Any:
-    """Mask the secret token segment in a Discord webhook URL."""
-    if not url or not isinstance(url, str):
-        return url
-    match = _WEBHOOK_URL_RE.match(url)
-    if match:
-        return f"{match.group(1)}[REDACTED]{match.group(3)}"
-    return url
+def redact_webhook_url(text: Any) -> Any:
+    """Mask secret Discord webhook tokens anywhere inside a URL or arbitrary string."""
+    if not text or not isinstance(text, str):
+        return text
+    return _WEBHOOK_URL_RE.sub(r"\1[REDACTED]", text)
+
+
+def validate_webhook_url(url: str) -> str:
+    """Validate that `url` is a Discord webhook URL without doing DNS SSRF checks."""
+    cleaned = url.strip()
+    parsed = urllib.parse.urlparse(cleaned)
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise CliError("Invalid webhook URL: only http/https Discord webhook URLs are supported.")
+    host = (parsed.hostname or "").lower()
+    if host not in _DISCORD_WEBHOOK_HOSTS:
+        raise CliError(f"Invalid webhook host: {host!r}. Must be a discord.com webhook URL.")
+    if not _WEBHOOK_URL_RE.search(cleaned):
+        raise CliError("Invalid Discord webhook URL format.")
+    return cleaned
 
 
 def permissions_to_list(perms: discord.Permissions | discord.PermissionOverwrite) -> list[str]:
@@ -292,42 +329,48 @@ def embed_from_json(embed_json: str) -> discord.Embed:
 
 
 def _is_forbidden_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
-        addr = addr.ipv4_mapped
-    return (
-        addr.is_private
-        or addr.is_loopback
-        or addr.is_link_local
-        or addr.is_multicast
-        or addr.is_reserved
-        or addr.is_unspecified
-    )
+    """Return True for any non-globally-routable or multicast IP (including CGNAT/site-local)."""
+    if isinstance(addr, ipaddress.IPv6Address):
+        if addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped
+        elif addr in _SITE_LOCAL_V6:
+            return True
+    if isinstance(addr, ipaddress.IPv4Address):
+        if addr in _CGNAT_V4 or addr in _6TO4_RELAY_V4:
+            return True
+    return (not addr.is_global) or addr.is_multicast
 
 
-def validate_remote_url(url: str) -> str:
-    """Validate an http(s) URL and block loopback/private/link-local/metadata SSRF targets."""
+def _check_url_syntax_and_literal(url: str) -> tuple[urllib.parse.ParseResult, str]:
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
+    if parsed.scheme.lower() not in {"http", "https"}:
         raise CliError(f"Unsupported URL scheme: {parsed.scheme!r}. Only http/https allowed.")
     host = parsed.hostname
     if not host:
-        raise CliError(f"Invalid URL (missing hostname): {url}")
-    if host.lower() in {"localhost", "localhost.localdomain"} or host.lower().endswith(".local"):
+        raise CliError("Invalid URL (missing hostname)")
+    lowered = host.rstrip(".").lower()
+    if lowered in {"localhost", "localhost.localdomain"} or lowered.endswith(".local"):
         raise CliError(f"Refusing to fetch from local hostname: {host}")
 
-    # Direct IP literal check first.
     try:
         ip_literal = ipaddress.ip_address(host)
     except ValueError:
         ip_literal = None
+    if ip_literal is not None and _is_forbidden_ip(ip_literal):
+        raise CliError(f"Refusing to fetch from non-public IP address: {host}")
+    return parsed, host
 
-    if ip_literal is not None:
-        if _is_forbidden_ip(ip_literal):
-            raise CliError(f"Refusing to fetch from non-public IP address: {host}")
+
+def validate_remote_url(url: str) -> str:
+    """Validate an http(s) URL and block non-global/CGNAT/site-local/multicast SSRF targets."""
+    parsed, host = _check_url_syntax_and_literal(url)
+    try:
+        ipaddress.ip_address(host)
         return url
+    except ValueError:
+        pass
 
-    # Resolve hostname and verify every resolved address is publicly routable.
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
@@ -341,49 +384,55 @@ def validate_remote_url(url: str) -> str:
         resolved_ip = ipaddress.ip_address(sockaddr[0])
         if _is_forbidden_ip(resolved_ip):
             raise CliError(
-                f"Refusing to fetch URL {url!r}: hostname {host!r} resolved to non-public IP {resolved_ip}"
+                f"Refusing to fetch from {host!r}: resolved to non-public IP {resolved_ip}"
             )
     return url
 
 
-def read_image_bytes(source: str) -> bytes:
-    """Read image bytes from a local file or SSRF-validated http(s) URL (sync helper)."""
-    if re.match(r"^https?://", source):
-        validate_remote_url(source)
-        with urllib.request.urlopen(source, timeout=30) as response:  # noqa: S310 - validated public URL
-            data = response.read(_MAX_IMAGE_BYTES + 1)
-            if len(data) > _MAX_IMAGE_BYTES:
-                raise CliError(
-                    f"Remote image exceeds maximum allowed size ({_MAX_IMAGE_BYTES} bytes)"
-                )
-            return data
-    with open(source, "rb") as image_file:
-        return image_file.read()
+class _SafeResolver(aiohttp.resolver.ThreadedResolver):
+    """aiohttp DNS resolver that validates every resolved IP at connect time (prevents DNS rebinding)."""
+
+    async def resolve(
+        self,
+        host: str,
+        port: int = 0,
+        family: socket.AddressFamily = socket.AF_UNSPEC,
+    ) -> list[dict[str, Any]]:
+        results = await super().resolve(host, port, family)
+        for entry in results:
+            ip = ipaddress.ip_address(entry["host"])
+            if _is_forbidden_ip(ip):
+                raise CliError(f"Refusing to connect to {host!r}: resolved to non-public IP {ip}")
+        return results
 
 
 async def read_image_bytes_async(source: str) -> bytes:
-    """Read image bytes asynchronously via aiohttp (with SSRF + redirect checks) or local file."""
-    if re.match(r"^https?://", source):
-        current_url = validate_remote_url(source)
+    """Read image bytes asynchronously via aiohttp (rebinding-safe + chunked full read) or local file."""
+    if re.match(r"^https?://", source, re.IGNORECASE):
+        current_url = source
+        _check_url_syntax_and_literal(current_url)
         timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        connector = aiohttp.TCPConnector(resolver=_SafeResolver())
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             for _ in range(_MAX_REDIRECTS + 1):
+                _check_url_syntax_and_literal(current_url)
                 async with session.get(current_url, allow_redirects=False) as resp:
                     if resp.status in {301, 302, 303, 307, 308}:
                         location = resp.headers.get("Location")
                         if not location:
                             raise CliError("Redirect response missing Location header")
-                        next_url = urllib.parse.urljoin(current_url, location)
-                        current_url = validate_remote_url(next_url)
+                        current_url = urllib.parse.urljoin(current_url, location)
                         continue
                     resp.raise_for_status()
-                    data = await resp.content.read(_MAX_IMAGE_BYTES + 1)
-                    if len(data) > _MAX_IMAGE_BYTES:
-                        raise CliError(
-                            f"Remote image exceeds maximum allowed size ({_MAX_IMAGE_BYTES} bytes)"
-                        )
-                    return data
-            raise CliError(f"Too many redirects while fetching {source}")
+                    buf = bytearray()
+                    async for chunk in resp.content.iter_chunked(_CHUNK_SIZE):
+                        buf.extend(chunk)
+                        if len(buf) > _MAX_IMAGE_BYTES:
+                            raise CliError(
+                                f"Remote image exceeds maximum allowed size ({_MAX_IMAGE_BYTES} bytes)"
+                            )
+                    return bytes(buf)
+            raise CliError("Too many redirects while fetching remote image")
     with open(source, "rb") as image_file:
         return image_file.read()
 
@@ -490,12 +539,12 @@ def get_channel(guild: discord.Guild, channel_id: int) -> discord.abc.GuildChann
 async def resolve_channel(
     guild: discord.Guild, channel_id: int, client: discord.Client | None = None
 ) -> discord.abc.GuildChannel | discord.Thread:
-    """Look up a channel or thread via cache first, then REST fetch."""
+    """Look up a channel or thread belonging to `guild` via cache first, then REST fetch."""
     channel = guild.get_channel_or_thread(channel_id)
     if channel is not None:
         return channel
     cache = _session_cache(client)
-    cache_key = ("channel", channel_id)
+    cache_key = ("channel", guild.id, channel_id)
     if cache is not None and cache_key in cache:
         return cache[cache_key]
     for fetcher in (getattr(guild, "fetch_channel", None), getattr(client, "fetch_channel", None)):
@@ -503,9 +552,17 @@ async def resolve_channel(
             continue
         try:
             fetched = await fetcher(channel_id)
-        except (discord.NotFound, discord.HTTPException):
+        except discord.NotFound:
             continue
         if fetched is not None and isinstance(fetched, (discord.abc.GuildChannel, discord.Thread)):
+            fetched_guild = getattr(fetched, "guild", None)
+            fetched_guild_id = (
+                getattr(fetched_guild, "id", None)
+                if fetched_guild is not None
+                else getattr(fetched, "guild_id", None)
+            )
+            if isinstance(fetched_guild_id, int) and fetched_guild_id != guild.id:
+                continue
             if cache is not None:
                 cache[cache_key] = fetched
             return fetched

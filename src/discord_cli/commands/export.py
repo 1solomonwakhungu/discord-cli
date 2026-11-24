@@ -11,6 +11,7 @@ import discord
 
 from discord_cli.errors import CliError
 from discord_cli.models import get_guild, resolve_channel
+from discord_cli.output import sanitize_csv_cell
 from discord_cli.registry import invoke, registry
 
 
@@ -79,6 +80,8 @@ async def action_export_channel(
         )
         writer.writeheader()
         for message in messages:
-            writer.writerow({key: message.get(key, "") for key in writer.fieldnames})
+            writer.writerow(
+                {key: sanitize_csv_cell(message.get(key, "")) for key in writer.fieldnames}
+            )
         return {"format": "csv", "count": len(messages), "data": output_buffer.getvalue()}
     return {"format": "json", "count": len(messages), "messages": messages}

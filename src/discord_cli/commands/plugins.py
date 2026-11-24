@@ -8,7 +8,7 @@ import click
 
 from discord_cli.output import make_payload, print_output
 from discord_cli.plugins import loaded_plugins, plugin_errors
-from discord_cli.registry import registry
+from discord_cli.registry import build_output_options, registry
 
 
 @registry.group("plugins")
@@ -19,6 +19,10 @@ def plugins_group() -> None:
 @plugins_group.command("list")
 @click.pass_context
 def plugins_list(ctx: click.Context) -> None:
+    root_ctx = ctx.find_root()
+    root_cmd = root_ctx.command
+    if hasattr(root_cmd, "ensure_plugins_loaded") and not (ctx.obj or {}).get("no_plugins"):
+        root_cmd.ensure_plugins_loaded(root_ctx)
     human = (ctx.obj or {}).get("human", False)
     plugins = [
         {"name": plugin.name, "version": plugin.version, "module": plugin.module}
@@ -36,4 +40,4 @@ def plugins_list(ctx: click.Context) -> None:
             }
             for err in errors
         ]
-    print_output(make_payload(data), human)
+    print_output(make_payload(data), human, options=build_output_options(ctx))
