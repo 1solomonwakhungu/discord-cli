@@ -12,10 +12,13 @@ from discord_cli.models import (
     channel_to_dict,
     fetch_guild_channels,
     get_guild,
-    resolve_category,
-    resolve_channel,
 )
 from discord_cli.registry import TRI_STATE_BOOL, invoke, registry
+from discord_cli.resolvers import (
+    RESOURCE_ID,
+    resolve_category_selector,
+    resolve_channel_selector,
+)
 
 
 @registry.group("channel")
@@ -34,7 +37,7 @@ def channel_list(ctx: click.Context) -> None:
 @click.option(
     "--type", "channel_type", type=click.Choice(["text", "voice", "stage", "forum"]), default="text"
 )
-@click.option("--category", type=int, default=None)
+@click.option("--category", type=RESOURCE_ID, default=None)
 @click.option("--topic", default=None)
 @click.option("--position", type=int, default=None)
 @click.option("--nsfw", is_flag=True, default=False)
@@ -44,7 +47,7 @@ def channel_create(
     ctx: click.Context,
     name: str,
     channel_type: str,
-    category: int | None,
+    category: int | str | None,
     topic: str | None,
     position: int | None,
     nsfw: bool,
@@ -64,14 +67,14 @@ def channel_create(
 
 
 @channel_group.command("delete")
-@click.argument("channel_id", type=int)
+@click.argument("channel_id", type=RESOURCE_ID)
 @click.pass_context
-def channel_delete(ctx: click.Context, channel_id: int) -> None:
+def channel_delete(ctx: click.Context, channel_id: int | str) -> None:
     invoke(ctx, action_channel_delete, channel_id=channel_id)
 
 
 @channel_group.command("edit")
-@click.argument("channel_id", type=int)
+@click.argument("channel_id", type=RESOURCE_ID)
 @click.option("--name", default=None)
 @click.option("--topic", default=None)
 @click.option("--position", type=int, default=None)
@@ -80,7 +83,7 @@ def channel_delete(ctx: click.Context, channel_id: int) -> None:
 @click.pass_context
 def channel_edit(
     ctx: click.Context,
-    channel_id: int,
+    channel_id: int | str,
     name: str | None,
     topic: str | None,
     position: int | None,
@@ -100,17 +103,17 @@ def channel_edit(
 
 
 @channel_group.command("move")
-@click.argument("channel_id", type=int)
-@click.option("--category", type=int, required=True)
+@click.argument("channel_id", type=RESOURCE_ID)
+@click.option("--category", type=RESOURCE_ID, required=True)
 @click.pass_context
-def channel_move(ctx: click.Context, channel_id: int, category: int) -> None:
+def channel_move(ctx: click.Context, channel_id: int | str, category: int | str) -> None:
     invoke(ctx, action_channel_move, channel_id=channel_id, category=category)
 
 
 @channel_group.command("info")
-@click.argument("channel_id", type=int)
+@click.argument("channel_id", type=RESOURCE_ID)
 @click.pass_context
-def channel_info(ctx: click.Context, channel_id: int) -> None:
+def channel_info(ctx: click.Context, channel_id: int | str) -> None:
     invoke(ctx, action_channel_info, channel_id=channel_id)
 
 
@@ -122,11 +125,12 @@ async def action_channel_list(client: discord.Client, guild_id: int | None, **_:
 
 async def action_channel_create(client: discord.Client, guild_id: int | None, **kwargs: Any) -> Any:
     guild = await get_guild(client, guild_id)
-    category = await resolve_category(guild, kwargs.get("category"), client=client)
+    category = await resolve_category_selector(guild, kwargs.get("category"), client=client)
+    reason = kwargs.get("reason") or "discord_cli channel create"
     common = {
         "category": category,
         "position": kwargs.get("position"),
-        "reason": "discord_cli channel create",
+        "reason": reason,
     }
     common = {k: v for k, v in common.items() if v is not None}
     ctype = kwargs.get("type") or "text"
@@ -157,20 +161,24 @@ async def action_channel_create(client: discord.Client, guild_id: int | None, **
 
 
 async def action_channel_delete(
-    client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    channel_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
     data = channel_to_dict(channel)
-    await channel.delete(reason="discord_cli channel delete")
+    await channel.delete(reason=reason or "discord_cli channel delete")
     return {"deleted": data}
 
 
 async def action_channel_edit(
-    client: discord.Client, guild_id: int | None, channel_id: int, **kwargs: Any
+    client: discord.Client, guild_id: int | None, channel_id: int | str, **kwargs: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
     edits: dict[str, Any] = {}
     if kwargs.get("name") is not None:
         edits["name"] = kwargs["name"]
@@ -184,22 +192,30 @@ async def action_channel_edit(
         edits["nsfw"] = kwargs["nsfw"]
     if not edits:
         raise CliError("No edits provided")
-    edited = await channel.edit(**edits, reason="discord_cli channel edit")  # type: ignore[union-attr]
+    reason = kwargs.get("reason") or "discord_cli channel edit"
+    edited = await channel.edit(**edits, reason=reason)  # type: ignore[union-attr]
     return {"updated": channel_to_dict(edited or channel, detailed=True)}
 
 
 async def action_channel_move(
-    client: discord.Client, guild_id: int | None, channel_id: int, category: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    channel_id: int | str,
+    category: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
-    new_category = await resolve_category(guild, category, client=client)
-    await channel.edit(category=new_category, reason="discord_cli channel move")  # type: ignore[call-arg,union-attr]
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
+    new_category = await resolve_category_selector(guild, category, client=client)
+    await channel.edit(category=new_category, reason=reason or "discord_cli channel move")  # type: ignore[call-arg,union-attr]
     return {"updated": channel_to_dict(channel, detailed=True)}
 
 
 async def action_channel_info(
-    client: discord.Client, guild_id: int | None, channel_id: int, **_: Any
+    client: discord.Client, guild_id: int | None, channel_id: int | str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    return channel_to_dict(await resolve_channel(guild, channel_id, client=client), detailed=True)
+    return channel_to_dict(
+        await resolve_channel_selector(guild, channel_id, client=client), detailed=True
+    )

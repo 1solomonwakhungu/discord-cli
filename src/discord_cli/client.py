@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from typing import Any, Callable
@@ -12,22 +13,21 @@ from typing import Any, Callable
 import discord
 
 from discord_cli.config import load_config
-from discord_cli.errors import DiscordCliError
-from discord_cli.models import redact_webhook_url
+from discord_cli.errors import (
+    DiscordCliError,
+    classify_exception,
+    resolve_process_exit_code,
+    semantic_exit_codes_enabled,
+)
 from discord_cli.output import OutputOptions, make_payload, print_output
+from discord_cli.policy import redact_secrets_in_text, write_audit_log
 
 Action = Callable[..., Awaitable[Any]]
 HttpAction = Callable[..., Awaitable[Any]]
 
 
 def _format_exception(exc: Exception) -> dict[str, Any]:
-    error: dict[str, Any] = {
-        "type": exc.__class__.__name__,
-        "message": str(redact_webhook_url(str(exc))),
-    }
-    if isinstance(exc, discord.HTTPException):
-        error.update({"status": exc.status, "code": exc.code})
-    return error
+    return classify_exception(exc, message_sanitizer=redact_secrets_in_text)
 
 
 class RestClient(discord.Client):
@@ -169,10 +169,35 @@ def _emit_and_exit(
     error: dict[str, Any] | None,
     human: bool,
     output_options: OutputOptions | None = None,
+    *,
+    semantic_exit: bool = False,
+    audit_meta: dict[str, Any] | None = None,
+    started_monotonic: float | None = None,
 ) -> None:
     payload = make_payload(result, error)
+    exit_code = resolve_process_exit_code(
+        error if not payload["ok"] else None,
+        semantic=semantic_exit_codes_enabled(semantic_exit),
+    )
+    if audit_meta is not None:
+        duration_ms = (
+            int((time.monotonic() - started_monotonic) * 1000)
+            if started_monotonic is not None
+            else 0
+        )
+        write_audit_log(
+            command=str(audit_meta.get("command", "")),
+            risk=str(audit_meta.get("risk", "read")),
+            guild_id=audit_meta.get("guild_id"),
+            policy=str(audit_meta.get("policy", "allow-destructive")),
+            dry_run=bool(audit_meta.get("dry_run", False)),
+            ok=bool(payload["ok"]),
+            exit_code=exit_code,
+            error_code=error.get("category") if isinstance(error, dict) else None,
+            duration_ms=duration_ms,
+        )
     print_output(payload, human, options=output_options)
-    raise SystemExit(0 if payload["ok"] else 1)
+    raise SystemExit(exit_code)
 
 
 def run_action(
@@ -183,23 +208,39 @@ def run_action(
     *,
     use_gateway: bool | None = None,
     output_options: OutputOptions | None = None,
+    profile: str | None = None,
+    semantic_exit: bool = False,
+    audit_meta: dict[str, Any] | None = None,
 ) -> None:
     """Load config, run the action against Discord, print the payload, and exit with its status."""
+    started = time.monotonic()
     try:
-        bot_token = load_config(token).bot_token
+        cfg = load_config(token, profile=profile) if profile else load_config(token)
+        bot_token = cfg.bot_token
     except DiscordCliError as exc:
         _emit_and_exit(
             None,
-            {"type": exc.__class__.__name__, "message": str(exc)},
+            _format_exception(exc),
             human,
             output_options=output_options,
+            semantic_exit=semantic_exit,
+            audit_meta=audit_meta,
+            started_monotonic=started,
         )
 
     if use_gateway is None:
         result, error = run_bot(action, kwargs, bot_token)
     else:
         result, error = run_bot(action, kwargs, bot_token, use_gateway=use_gateway)
-    _emit_and_exit(result, error, human, output_options=output_options)
+    _emit_and_exit(
+        result,
+        error,
+        human,
+        output_options=output_options,
+        semantic_exit=semantic_exit,
+        audit_meta=audit_meta,
+        started_monotonic=started,
+    )
 
 
 def run_http_action(
@@ -208,8 +249,11 @@ def run_http_action(
     human: bool = False,
     *,
     output_options: OutputOptions | None = None,
+    semantic_exit: bool = False,
+    audit_meta: dict[str, Any] | None = None,
 ) -> None:
     """Run a zero-gateway, bot-token-free HTTP action (e.g. webhook execution) and exit."""
+    started = time.monotonic()
 
     async def _runner() -> tuple[Any, dict[str, Any] | None]:
         try:
@@ -218,4 +262,12 @@ def run_http_action(
             return None, _format_exception(exc)
 
     result, error = asyncio.run(_runner())
-    _emit_and_exit(result, error, human, output_options=output_options)
+    _emit_and_exit(
+        result,
+        error,
+        human,
+        output_options=output_options,
+        semantic_exit=semantic_exit,
+        audit_meta=audit_meta,
+        started_monotonic=started,
+    )
