@@ -18,7 +18,7 @@ inputs:
     description: "Arguments passed to discord-cli (parsed safely via POSIX shlex, e.g. 'channel list --compact')."
     required: true
   version:
-    description: "Pin a specific discordcli-agents PyPI version (e.g. '1.8.0') or leave empty for latest."
+    description: "Pin a specific discordcli-agents PyPI version (e.g. '1.9.0') or leave empty for latest."
     required: false
     default: ""
   plugins:

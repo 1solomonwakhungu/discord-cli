@@ -20,7 +20,7 @@ No bot token or Gateway connection required:
 export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
 discord-cli webhook send \
   --template deploy \
-  --title "v1.8.0 Deployed" \
+  --title "v1.9.0 Deployed" \
   --description "Production rollout completed cleanly." \
   --field "Commit=$(git rev-parse --short HEAD)" \
   --field "Status=Green"
