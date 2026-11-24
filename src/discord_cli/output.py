@@ -38,6 +38,8 @@ class OutputOptions:
     string_ids: bool = False
     quiet: bool = False
     output_path: str | None = None
+    untrusted_envelope: bool = False
+    redact_pii: bool = False
 
     @property
     def effective_format(self) -> str:
@@ -262,7 +264,7 @@ def enforce_max_chars(
 
 
 def shape_payload(payload: dict[str, Any], options: OutputOptions) -> dict[str, Any]:
-    """Apply --fields, --string-ids, and --max-chars shaping to a payload."""
+    """Apply --fields, --string-ids, --redact-pii, --untrusted-envelope, and --max-chars shaping."""
     shaped = dict(payload)
     meta = dict(shaped.get("meta") or {})
 
@@ -272,6 +274,20 @@ def shape_payload(payload: dict[str, Any], options: OutputOptions) -> dict[str, 
 
     if options.string_ids:
         shaped["data"] = stringify_ids(shaped.get("data"))
+
+    if options.redact_pii:
+        from discord_cli.policy import redact_pii
+
+        if shaped.get("ok") and "data" in shaped:
+            shaped["data"] = redact_pii(shaped["data"])
+        elif "error" in shaped:
+            shaped["error"] = redact_pii(shaped["error"])
+        meta["pii_redacted"] = True
+
+    if options.untrusted_envelope:
+        from discord_cli.policy import apply_untrusted_envelope
+
+        shaped = apply_untrusted_envelope(shaped)
 
     if meta:
         shaped["meta"] = meta

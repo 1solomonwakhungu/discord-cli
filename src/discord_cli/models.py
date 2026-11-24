@@ -455,7 +455,10 @@ async def _fetch_guild_by_id(client: discord.Client, guild_id: int) -> discord.G
 
 async def get_guild(client: discord.Client, guild_id: int | None) -> discord.Guild:
     """Resolve the target guild via cache or REST, failing closed on multi-guild ambiguity."""
+    from discord_cli.policy import enforce_runtime_guild_allowlist
+
     if guild_id is not None:
+        enforce_runtime_guild_allowlist(guild_id)
         guild = client.get_guild(guild_id)
         if guild is not None:
             return guild
@@ -469,12 +472,15 @@ async def get_guild(client: discord.Client, guild_id: int | None) -> discord.Gui
             "Specify --guild <id> or set DISCORD_GUILD_ID."
         )
     if len(cached_guilds) == 1:
+        enforce_runtime_guild_allowlist(cached_guilds[0].id)
         return cached_guilds[0]
 
     # REST-only mode: client.guilds is empty, so discover guilds over REST.
     cache = _session_cache(client)
     if cache is not None and "default_guild" in cache:
-        return cache["default_guild"]
+        cached = cache["default_guild"]
+        enforce_runtime_guild_allowlist(cached.id)
+        return cached
 
     if not hasattr(client, "fetch_guilds"):
         raise CliError("Bot is not in any guilds")
@@ -487,6 +493,7 @@ async def get_guild(client: discord.Client, guild_id: int | None) -> discord.Gui
         raise CliError(
             f"Bot is in multiple guilds ({listing}). Specify --guild <id> or set DISCORD_GUILD_ID."
         )
+    enforce_runtime_guild_allowlist(discovered[0].id)
     guild = await _fetch_guild_by_id(client, discovered[0].id)
     if cache is not None:
         cache["default_guild"] = guild
@@ -540,6 +547,9 @@ async def resolve_channel(
     guild: discord.Guild, channel_id: int, client: discord.Client | None = None
 ) -> discord.abc.GuildChannel | discord.Thread:
     """Look up a channel or thread belonging to `guild` via cache first, then REST fetch."""
+    from discord_cli.policy import enforce_runtime_channel_allowlist
+
+    enforce_runtime_channel_allowlist(channel_id)
     channel = guild.get_channel_or_thread(channel_id)
     if channel is not None:
         return channel

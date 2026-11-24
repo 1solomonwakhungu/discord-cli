@@ -9,8 +9,9 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import fetch_guild_channels, get_guild, is_rest_mode, resolve_channel
+from discord_cli.models import fetch_guild_channels, get_guild, is_rest_mode
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_channel_selector
 
 _SEARCH_CONCURRENCY = 4
 
@@ -22,7 +23,7 @@ def search_group() -> None:
 
 @search_group.command("messages")
 @click.argument("query")
-@click.option("--channel-id", type=int, help="Channel to search in")
+@click.option("--channel-id", type=RESOURCE_ID, help="Channel ID or selector to search in")
 @click.option("--limit", type=int, default=25, help="Max matched results to return")
 @click.option(
     "--scan-limit",
@@ -32,7 +33,7 @@ def search_group() -> None:
 )
 @click.pass_context
 def search_messages(
-    ctx: click.Context, query: str, channel_id: int | None, limit: int, scan_limit: int
+    ctx: click.Context, query: str, channel_id: int | str | None, limit: int, scan_limit: int
 ) -> None:
     """Search messages in a channel or across the guild."""
     invoke(
@@ -58,7 +59,7 @@ async def action_search_messages(
     client: discord.Client,
     guild_id: int | None,
     query: str,
-    channel_id: int | None,
+    channel_id: int | str | None,
     limit: int,
     scan_limit: int = 500,
     **_: Any,
@@ -70,7 +71,7 @@ async def action_search_messages(
 
     guild = await get_guild(client, guild_id)
     if channel_id is not None:
-        channels: list[Any] = [await resolve_channel(guild, channel_id, client=client)]
+        channels: list[Any] = [await resolve_channel_selector(guild, channel_id, client=client)]
     else:
         all_channels = await fetch_guild_channels(guild, client=client)
         channels = [

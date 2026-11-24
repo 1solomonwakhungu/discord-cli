@@ -10,6 +10,7 @@ import discord
 from discord_cli.errors import CliError
 from discord_cli.models import fetch_guild_channels, get_guild, iso, resolve_channel
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_channel_selector
 
 
 @registry.group("threads")
@@ -18,16 +19,21 @@ def threads_group() -> None:
 
 
 @threads_group.command("list")
-@click.option("--channel-id", type=int, help="Filter by channel ID")
+@click.option("--channel-id", type=RESOURCE_ID, help="Filter by channel ID or selector")
 @click.pass_context
-def thread_list(ctx: click.Context, channel_id: int | None) -> None:
+def thread_list(ctx: click.Context, channel_id: int | str | None) -> None:
     """List all threads."""
     invoke(ctx, action_thread_list, channel_id=channel_id)
 
 
 @threads_group.command("create")
 @click.argument("name")
-@click.option("--channel-id", type=int, required=True, help="Channel to create the thread in")
+@click.option(
+    "--channel-id",
+    type=RESOURCE_ID,
+    required=True,
+    help="Channel ID or selector to create thread in",
+)
 @click.option("--type", "thread_type", type=click.Choice(["public", "private"]), default="public")
 @click.option(
     "--auto-archive",
@@ -94,9 +100,13 @@ def _thread_to_summary(thread: discord.Thread) -> dict[str, Any]:
 
 
 async def action_thread_list(
-    client: discord.Client, guild_id: int | None, channel_id: int | None, **_: Any
+    client: discord.Client, guild_id: int | None, channel_id: int | str | None, **_: Any
 ) -> list[dict[str, Any]]:
     guild = await get_guild(client, guild_id)
+    resolved_channel_id: int | None = None
+    if channel_id is not None:
+        resolved_channel = await resolve_channel_selector(guild, channel_id, client=client)
+        resolved_channel_id = resolved_channel.id
     threads: list[discord.Thread] = []
 
     active_fetcher = getattr(guild, "active_threads", None)
@@ -120,7 +130,7 @@ async def action_thread_list(
     for thread in threads:
         if thread.id in seen:
             continue
-        if channel_id is not None and thread.parent_id != channel_id:
+        if resolved_channel_id is not None and thread.parent_id != resolved_channel_id:
             continue
         seen.add(thread.id)
         result.append(_thread_to_summary(thread))
@@ -131,13 +141,13 @@ async def action_thread_create(
     client: discord.Client,
     guild_id: int | None,
     name: str,
-    channel_id: int,
+    channel_id: int | str,
     thread_type: str,
     auto_archive: int,
     **_: Any,
 ) -> dict[str, Any]:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
     if not isinstance(channel, discord.TextChannel):
         raise CliError("Threads can only be created in text channels")
     thread = await channel.create_thread(
@@ -176,11 +186,15 @@ async def resolve_thread(
 
 
 async def action_thread_delete(
-    client: discord.Client, guild_id: int | None, thread_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    thread_id: int,
+    reason: str | None = None,
+    **_: Any,
 ) -> dict[str, int]:
     guild = await get_guild(client, guild_id)
     thread = await resolve_thread(client, guild, thread_id)
-    await thread.delete(reason="discord_cli thread delete")
+    await thread.delete(reason=reason or "discord_cli thread delete")
     return {"deleted": thread_id}
 
 

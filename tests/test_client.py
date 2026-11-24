@@ -70,7 +70,11 @@ class TestRestClient:
         result, error = await client_mod._run_async(ok_action, {}, "fake-token")
 
         assert result is None
-        assert error == {"type": "RuntimeError", "message": "bad token"}
+        assert error["type"] == "RuntimeError"
+        assert error["message"] == "bad token"
+        assert error["category"] == "RUNTIME_ERROR"
+        assert error["exit_code"] == 1
+        assert error["retryable"] is False
 
     async def test_rest_session_closes_on_error(self):
         c = client_mod.RestClient()
@@ -95,7 +99,9 @@ class TestManagementClientOnReady:
         c = client_mod.ManagementClient(failing_action, {}, discord.Intents.default())
         await c.on_ready()
         assert c.result is None
-        assert c.error == {"type": "ValueError", "message": "kaboom"}
+        assert c.error["type"] == "ValueError"
+        assert c.error["message"] == "kaboom"
+        assert c.error["category"] == "RUNTIME_ERROR"
         assert c.is_closed()
 
     async def test_http_exception_includes_status_and_code(self):
@@ -138,7 +144,9 @@ class TestRunAsyncGateway:
         )
 
         assert result is None
-        assert error == {"type": "ValueError", "message": "kaboom"}
+        assert error["type"] == "ValueError"
+        assert error["message"] == "kaboom"
+        assert error["category"] == "RUNTIME_ERROR"
 
     async def test_retries_with_fallback_intents_on_privileged_intents_required(self, monkeypatch):
         async def fake_start(self, token):
@@ -196,7 +204,9 @@ class TestRunAsyncGateway:
         )
 
         assert result is None
-        assert error == {"type": "RuntimeError", "message": "network unreachable"}
+        assert error["type"] == "RuntimeError"
+        assert error["message"] == "network unreachable"
+        assert error["category"] == "RUNTIME_ERROR"
 
     async def test_env_var_enables_gateway_transport(self, monkeypatch):
         monkeypatch.setenv("DISCORD_CLI_TRANSPORT", "gateway")

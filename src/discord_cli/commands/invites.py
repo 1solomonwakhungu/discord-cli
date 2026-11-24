@@ -8,8 +8,9 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_guild, is_rest_mode, resolve_channel
+from discord_cli.models import get_guild, is_rest_mode
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_channel_selector
 
 
 @registry.group("invites")
@@ -25,13 +26,15 @@ def invite_list(ctx: click.Context) -> None:
 
 
 @invites_group.command("create")
-@click.option("--channel-id", type=int, required=True, help="Channel to create invite for")
+@click.option(
+    "--channel-id", type=RESOURCE_ID, required=True, help="Channel ID or selector to invite to"
+)
 @click.option("--max-age", type=int, default=0, help="Max age in seconds (0=never)")
 @click.option("--max-uses", type=int, default=0, help="Max uses (0=unlimited)")
 @click.option("--temporary", is_flag=True, help="Temporary membership")
 @click.pass_context
 def invite_create(
-    ctx: click.Context, channel_id: int, max_age: int, max_uses: int, temporary: bool
+    ctx: click.Context, channel_id: int | str, max_age: int, max_uses: int, temporary: bool
 ) -> None:
     """Create an invite."""
     invoke(
@@ -76,14 +79,14 @@ async def action_invite_list(
 async def action_invite_create(
     client: discord.Client,
     guild_id: int | None,
-    channel_id: int,
+    channel_id: int | str,
     max_age: int,
     max_uses: int,
     temporary: bool,
     **_: Any,
 ) -> dict[str, str]:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
     if not hasattr(channel, "create_invite"):
         raise CliError(f"Channel {channel_id} does not support invites")
     invite = await channel.create_invite(max_age=max_age, max_uses=max_uses, temporary=temporary)
@@ -91,11 +94,16 @@ async def action_invite_create(
 
 
 async def action_invite_delete(
-    client: discord.Client, guild_id: int | None, code: str, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    code: str,
+    reason: str | None = None,
+    **_: Any,
 ) -> dict[str, str]:
+    del_reason = reason or "discord_cli invite delete"
     if is_rest_mode(client):
         try:
-            await client.http.delete_invite(code, reason="discord_cli invite delete")
+            await client.http.delete_invite(code, reason=del_reason)
         except discord.NotFound as exc:
             raise CliError(f"Invite {code} not found") from exc
         return {"deleted": code}
@@ -103,6 +111,6 @@ async def action_invite_delete(
     guild = await get_guild(client, guild_id)
     for invite in await guild.invites():
         if invite.code == code:
-            await invite.delete(reason="discord_cli invite delete")
+            await invite.delete(reason=del_reason)
             return {"deleted": code}
     raise CliError(f"Invite {code} not found")
