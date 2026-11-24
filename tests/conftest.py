@@ -513,7 +513,7 @@ def patch_run_action(monkeypatch, fake_client_box):
             payload = make_payload(result=result)
         except DiscordCliError as exc:
             payload = make_payload(error={"type": exc.__class__.__name__, "message": str(exc)})
-        print_output(payload, human)
+        print_output(payload, human, options=extra.get("output_options"))
         raise SystemExit(0 if payload["ok"] else 1)
 
     monkeypatch.setattr("discord_cli.registry.run_action", _fake_run_action)

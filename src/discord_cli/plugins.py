@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 import click
 
+from discord_cli.errors import CliError
 from discord_cli.registry import CommandRegistry
 
 logger = logging.getLogger(__name__)
@@ -83,22 +84,32 @@ def _entry_point_version(ep: EntryPoint) -> str:
 
 
 def load_plugins(registry: CommandRegistry, root: click.Group) -> list[PluginInfo]:
-    """Discover, load, and register third-party plugins.
+    """Discover, load, and register third-party plugins safely.
 
-    For each entry point in the `discord_cli.plugins` group, resolve the
-    callable it points to and call it with `registry` so the plugin can
-    register its own command groups. Newly registered groups are then
-    attached to `root`. A plugin that fails to import, resolve, or register
-    (including attempting to shadow a built-in command group) is skipped with
-    a logged warning and recorded in `plugin_errors()`; it never crashes the CLI.
+    A plugin that fails to import, resolve, or register — including raising
+    SystemExit, attempting to shadow a built-in command group/alias, or mutating
+    built-in subcommands — is skipped with a logged warning and recorded in
+    `plugin_errors()`. It never crashes the CLI.
     """
     _loaded.clear()
     _errors.clear()
     for ep in _discover(PLUGIN_GROUP):
+        before_groups = set(registry._groups.keys())
         try:
             register = ep.load()
             register(registry)
-        except Exception as exc:  # noqa: BLE001 - a broken plugin must never crash the CLI
+            violations = registry.check_builtin_integrity()
+            if violations:
+                raise CliError(
+                    f"Plugin {ep.name!r} attempted to modify built-in subcommands: {', '.join(violations)}"
+                )
+        except KeyboardInterrupt:
+            raise
+        except BaseException as exc:  # noqa: BLE001 - even SystemExit in a plugin must not kill the CLI
+            # Roll back any partially registered groups from the failed plugin.
+            for added in set(registry._groups.keys()) - before_groups:
+                registry._groups.pop(added, None)
+            registry.check_builtin_integrity()
             logger.warning("Failed to load plugin %r from %r", ep.name, ep.value, exc_info=True)
             _errors.append(
                 PluginError(
