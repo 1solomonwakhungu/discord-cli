@@ -11,7 +11,7 @@
 
 Current release: 1.9.0 ([PyPI](https://pypi.org/project/discordcli-agents/))
 
-> **64 commands across 13 groups** — manage channels, categories, roles, permissions, members, messages, threads, webhooks, invites, search, and JSON/CSV exports from one command-line binary. No long-running bot daemon. No MCP tool-schema context bloat.
+> **89 commands across 20 groups** — REST-first Discord automation with zero-gateway webhooks, deterministic safety policies (`--policy`, `--dry-run`, `--confirm-token`), runtime JSON Schemas (`describe`, `--schema`), prompt-injection boundaries (`--untrusted-envelope`), human selectors (`#channel`, `role:Ops`, `@alice`), multi-profile config, Distroless Docker image, and a composite GitHub Action. No long-running bot daemon. No MCP tool-schema context bloat.
 
 ---
 
@@ -73,6 +73,22 @@ pip install discordcli-agents
 
 ```bash
 brew install 1solomonwakhungu/tap/discordcli-agents
+```
+
+### Docker (Distroless OCI image on GHCR)
+
+```bash
+docker run --rm -e DISCORD_BOT_TOKEN ghcr.io/1solomonwakhungu/discord-cli:latest guild info
+```
+
+### GitHub Action
+
+```yaml
+- uses: 1solomonwakhungu/discord-cli@v1.9.0
+  with:
+    token: ${{ secrets.DISCORD_BOT_TOKEN }}
+    policy: allow-write
+    args: 'message send "#releases" --content "Deployed ${{ github.ref_name }}"'
 ```
 
 ### Windows (Scoop manual manifest)
@@ -166,24 +182,31 @@ discord-cli guild prune --days 30
 
 ---
 
-## Command reference (64 commands, 13 groups)
+## Command reference (89 commands, 20 groups)
 
-Global options (placed **before** the command group): `--token TEXT`, `--guild INTEGER`, `--human`, `--version`.
+Run `discord-cli describe list --compact` for live machine-readable discovery or `discord-cli <group> <subcommand> --schema` for exact JSON Schema inputs. Global options work both before and after subcommands (including `--policy`, `--dry-run`, `--compact`, `--fields`, `--max-chars`, `--string-ids`, `--format`, `--untrusted-envelope`, `--redact-pii`, `--semantic-exit-codes`).
 
 | Group | Commands | What it covers |
 |---|---|---|
-| `channel` | `list`, `create`, `delete`, `edit`, `move`, `info` | Text, voice, stage, and forum channels |
-| `category` | `list`, `create`, `delete`, `edit` | Channel category organization |
-| `role` | `list`, `create`, `delete`, `edit`, `assign`, `remove`, `info` | Server roles, colors, permissions, assignments |
-| `member` | `list`, `info`, `kick`, `ban`, `unban`, `timeout`, `untimeout`, `nickname`, `roles` | Member lookup and moderation |
-| `message` | `list`, `send`, `edit`, `delete`, `purge`, `fetch`, `pin`, `unpin`, `react` | Messaging, embeds, reactions, bulk purge |
+| `channel` | `list`, `create`, `delete`, `edit`, `move`, `info` | Text, voice, stage, and forum channels (`#name` & `cat:Cat/#name` selectors) |
+| `category` | `list`, `create`, `delete`, `edit` | Channel category organization (`cat:Name` selectors) |
+| `role` | `list`, `create`, `delete`, `edit`, `assign`, `remove`, `info` | Server roles, colors, permissions, assignments (`role:Name`, `@everyone`) |
+| `member` | `list`, `info`, `kick`, `ban`, `unban`, `timeout`, `untimeout`, `nickname`, `roles` | Member lookup, pagination, hackban, and moderation (`@user` selectors) |
+| `message` | `list`, `send`, `edit`, `delete`, `purge`, `fetch`, `pin`, `unpin`, `pins`, `publish`, `download`, `react`, `unreact` | Rich messaging, attachments, embeds, replies, auto-split, message URLs |
 | `guild` | `info`, `edit`, `emojis {list,create,delete}`, `stickers list`, `bans list`, `regions`, `prune` | Server profile, emojis, stickers, bans, pruning |
 | `permissions` | `list`, `set`, `reset` | Per-channel role/member permission overwrites |
-| `webhook` | `list`, `create`, `delete`, `info` | Channel webhook management |
+| `webhook` | `list`, `create`, `edit`, `delete`, `info`, `send`, `edit-message`, `delete-message`, `fetch-message` | Webhook management + zero-gateway CI/CD templates & execution |
 | `invites` | `list`, `create`, `delete` | Server invite links with max-age/max-uses/temporary |
-| `threads` | `list`, `create`, `delete`, `archive`, `unarchive`, `members` | Public/private threads and thread membership |
-| `search` | `messages`, `members` | Substring search across channel history or members |
-| `export` | `channel` | Export channel history as JSON or CSV |
+| `threads` | `list`, `create`, `delete`, `archive`, `unarchive`, `members` | Active & archived threads and thread membership |
+| `search` | `messages`, `members` | Bounded channel history search and REST member search |
+| `export` | `channel` | Export channel history as JSON or CSV (formula-safe) |
+| `audit` | `list`, `user` | Guild audit log inspection and user correlation |
+| `doctor` | `check` (or bare `doctor`) | Auth, intent, role hierarchy, and permission diagnostics |
+| `api` | `request` | Raw authenticated Discord REST API v10 escape hatch |
+| `describe` | `list`, `command`, `commands-json` (or bare `describe`) | Runtime JSON Schema & capability introspection |
+| `auth` | `login`, `status`, `switch`, `logout` | Named profiles and optional OS keyring credentials |
+| `config` | `path`, `list`, `get`, `set` | User/project TOML configuration and guild aliases |
+| `completion` | `generate` | Shell completions for `bash`, `zsh`, and `fish` |
 | `plugins` | `list` | Inspect loaded third-party `discord_cli.plugins` |
 
 ---
