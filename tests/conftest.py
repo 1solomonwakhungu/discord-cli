@@ -507,14 +507,23 @@ def patch_run_action(monkeypatch, fake_client_box):
     """
 
     def _fake_run_action(action, kwargs, human=False, token=None, **extra):
+        from discord_cli.client import _emit_and_exit, _format_exception
+
         client = fake_client_box.get("client")
         try:
             result = asyncio.run(action(client, **kwargs))
-            payload = make_payload(result=result)
-        except DiscordCliError as exc:
-            payload = make_payload(error={"type": exc.__class__.__name__, "message": str(exc)})
-        print_output(payload, human, options=extra.get("output_options"))
-        raise SystemExit(0 if payload["ok"] else 1)
+            error = None
+        except (DiscordCliError, discord.DiscordException) as exc:
+            result = None
+            error = _format_exception(exc)
+        _emit_and_exit(
+            result,
+            error,
+            human,
+            output_options=extra.get("output_options"),
+            semantic_exit=bool(extra.get("semantic_exit", False)),
+            audit_meta=extra.get("audit_meta"),
+        )
 
     monkeypatch.setattr("discord_cli.registry.run_action", _fake_run_action)
 

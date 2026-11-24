@@ -10,9 +10,10 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import get_guild, resolve_channel
+from discord_cli.models import get_guild
 from discord_cli.output import sanitize_csv_cell
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_channel_selector
 
 
 @registry.group("export")
@@ -21,11 +22,13 @@ def export_group() -> None:
 
 
 @export_group.command("channel")
-@click.argument("channel_id", type=int)
+@click.argument("channel_id", type=RESOURCE_ID)
 @click.option("--limit", type=int, default=100, help="Number of messages to export")
 @click.option("--format", "output_format", type=click.Choice(["json", "csv"]), default="json")
 @click.pass_context
-def export_channel(ctx: click.Context, channel_id: int, limit: int, output_format: str) -> None:
+def export_channel(
+    ctx: click.Context, channel_id: int | str, limit: int, output_format: str
+) -> None:
     """Export messages from a channel."""
     invoke(
         ctx,
@@ -39,13 +42,13 @@ def export_channel(ctx: click.Context, channel_id: int, limit: int, output_forma
 async def action_export_channel(
     client: discord.Client,
     guild_id: int | None,
-    channel_id: int,
+    channel_id: int | str,
     limit: int,
     output_format: str,
     **_: Any,
 ) -> dict[str, Any]:
     guild = await get_guild(client, guild_id)
-    channel = await resolve_channel(guild, channel_id, client=client)
+    channel = await resolve_channel_selector(guild, channel_id, client=client)
     if not hasattr(channel, "history"):
         raise CliError(f"Channel {channel_id} does not support message history")
 
