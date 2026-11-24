@@ -40,7 +40,10 @@ jobs:
 
   release:
     needs: lint-and-test
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' &&
+      !startsWith(github.event.head_commit.message, 'chore(release):') &&
+      !startsWith(github.event.head_commit.message, 'chore(scoop):')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -69,11 +72,14 @@ jobs:
       - name: Run semantic-release (version + changelog + tag)
         id: semantic_release
         run: |
+          BEFORE_SHA=$(git rev-parse HEAD)
           # --no-vcs-release: the "Create GitHub Release" step below owns
           # publishing the release so it can attach the built distributions.
           python -m semantic_release version --no-vcs-release
-          # Check if a new version was released
-          if git describe --tags --exact-match HEAD 2>/dev/null; then
+          AFTER_SHA=$(git rev-parse HEAD)
+          # Only mark released=true when semantic-release actually created a NEW
+          # tagged release commit (never re-trigger on an already-tagged commit).
+          if [ "$AFTER_SHA" != "$BEFORE_SHA" ] && git describe --tags --exact-match HEAD 2>/dev/null; then
             echo "released=true" >> $GITHUB_OUTPUT
             echo "version=$(python -c 'import discord_cli; print(discord_cli.__version__)')" >> $GITHUB_OUTPUT
             echo "tag=v$(python -c 'import discord_cli; print(discord_cli.__version__)')" >> $GITHUB_OUTPUT
