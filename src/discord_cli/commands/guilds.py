@@ -163,7 +163,7 @@ async def action_guild_edit(client: discord.Client, guild_id: int | None, **kwar
     }
     if not edits:
         raise CliError("No edits provided")
-    await guild.edit(**edits, reason="discord_cli guild edit")
+    await guild.edit(**edits, reason=kwargs.get("reason") or "discord_cli guild edit")
     invalidate_guild_cache(client, guild.id)
     return {"updated": await action_guild_info(client, guild.id)}
 
@@ -272,11 +272,16 @@ async def action_guild_regions(client: discord.Client, guild_id: int | None, **_
 
 
 async def action_guild_prune(
-    client: discord.Client, guild_id: int | None, days: int, dry_run: bool, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    days: int,
+    dry_run: bool,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
     if dry_run:
         count = await guild.estimate_pruned_members(days=days)
         return {"dry_run": True, "days": days, "pruned_member_count": count}
-    count = await guild.prune_members(days=days, reason="discord_cli guild prune")
+    count = await guild.prune_members(days=days, reason=reason or "discord_cli guild prune")
     return {"dry_run": False, "days": days, "pruned_member_count": count}

@@ -11,7 +11,6 @@ from discord_cli.errors import CliError
 from discord_cli.models import (
     fetch_guild_roles,
     get_guild,
-    get_member,
     is_rest_mode,
     iso,
     member_to_dict,
@@ -19,6 +18,7 @@ from discord_cli.models import (
     role_to_dict,
 )
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, parse_snowflake, resolve_member_selector
 
 
 @registry.group("member")
@@ -37,27 +37,27 @@ def member_list(ctx: click.Context, limit: int | None, after_id: int | None) -> 
 
 
 @member_group.command("info")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.pass_context
-def member_info(ctx: click.Context, member_id: int) -> None:
+def member_info(ctx: click.Context, member_id: int | str) -> None:
     invoke(ctx, action_member_info, member_id=member_id)
 
 
 @member_group.command("kick")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.option("--reason", default=None)
 @click.pass_context
-def member_kick(ctx: click.Context, member_id: int, reason: str | None) -> None:
+def member_kick(ctx: click.Context, member_id: int | str, reason: str | None) -> None:
     invoke(ctx, action_member_kick, member_id=member_id, reason=reason)
 
 
 @member_group.command("ban")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.option("--reason", default=None)
 @click.option("--delete-message-days", type=int, default=0)
 @click.pass_context
 def member_ban(
-    ctx: click.Context, member_id: int, reason: str | None, delete_message_days: int
+    ctx: click.Context, member_id: int | str, reason: str | None, delete_message_days: int
 ) -> None:
     invoke(
         ctx,
@@ -76,33 +76,35 @@ def member_unban(ctx: click.Context, user_id: int) -> None:
 
 
 @member_group.command("timeout")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.argument("duration")
 @click.option("--reason", default=None)
 @click.pass_context
-def member_timeout(ctx: click.Context, member_id: int, duration: str, reason: str | None) -> None:
+def member_timeout(
+    ctx: click.Context, member_id: int | str, duration: str, reason: str | None
+) -> None:
     invoke(ctx, action_member_timeout, member_id=member_id, duration=duration, reason=reason)
 
 
 @member_group.command("untimeout")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.pass_context
-def member_untimeout(ctx: click.Context, member_id: int) -> None:
+def member_untimeout(ctx: click.Context, member_id: int | str) -> None:
     invoke(ctx, action_member_untimeout, member_id=member_id)
 
 
 @member_group.command("nickname")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.argument("nickname")
 @click.pass_context
-def member_nickname(ctx: click.Context, member_id: int, nickname: str) -> None:
+def member_nickname(ctx: click.Context, member_id: int | str, nickname: str) -> None:
     invoke(ctx, action_member_nickname, member_id=member_id, nickname=nickname)
 
 
 @member_group.command("roles")
-@click.argument("member_id", type=int)
+@click.argument("member_id", type=RESOURCE_ID)
 @click.pass_context
-def member_roles(ctx: click.Context, member_id: int) -> None:
+def member_roles(ctx: click.Context, member_id: int | str) -> None:
     invoke(ctx, action_member_roles, member_id=member_id)
 
 
@@ -223,19 +225,25 @@ async def action_member_list(
 
 
 async def action_member_info(
-    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+    client: discord.Client, guild_id: int | None, member_id: int | str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
     return member_to_dict(
-        await get_member(guild, member_id), detailed=True, rest_mode=is_rest_mode(client)
+        await resolve_member_selector(guild, member_id, client=client),
+        detailed=True,
+        rest_mode=is_rest_mode(client),
     )
 
 
 async def action_member_kick(
-    client: discord.Client, guild_id: int | None, member_id: int, reason: str | None, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    member_id: int | str,
+    reason: str | None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
+    member = await resolve_member_selector(guild, member_id, client=client)
     data = member_to_dict(member, rest_mode=is_rest_mode(client))
     await member.kick(reason=reason or "discord_cli member kick")
     return {"kicked": data}
@@ -244,7 +252,7 @@ async def action_member_kick(
 async def action_member_ban(
     client: discord.Client,
     guild_id: int | None,
-    member_id: int,
+    member_id: int | str,
     reason: str | None,
     delete_message_days: int,
     **_: Any,
@@ -252,16 +260,19 @@ async def action_member_ban(
     guild = await get_guild(client, guild_id)
     ban_reason = reason or "discord_cli member ban"
     delete_seconds = min(max(0, delete_message_days) * 86400, 604800)
+    direct_id = parse_snowflake(member_id)
     try:
-        member = await get_member(guild, member_id)
+        member = await resolve_member_selector(guild, member_id, client=client)
     except (discord.NotFound, CliError):
-        # Hackban: user is not currently in the guild.
+        if direct_id is None:
+            raise
+        # Hackban: numeric user ID not currently in the guild.
         await guild.ban(
-            discord.Object(id=member_id),
+            discord.Object(id=direct_id),
             reason=ban_reason,
             delete_message_seconds=delete_seconds,
         )
-        return {"banned": {"id": member_id, "hackban": True}}
+        return {"banned": {"id": direct_id, "hackban": True}}
 
     data = member_to_dict(member, rest_mode=is_rest_mode(client))
     await member.ban(reason=ban_reason, delete_message_seconds=delete_seconds)
@@ -269,24 +280,28 @@ async def action_member_ban(
 
 
 async def action_member_unban(
-    client: discord.Client, guild_id: int | None, user_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    user_id: int,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
     user = await client.fetch_user(user_id)
-    await guild.unban(user, reason="discord_cli member unban")
+    await guild.unban(user, reason=reason or "discord_cli member unban")
     return {"unbanned": {"id": user.id, "name": str(user)}}
 
 
 async def action_member_timeout(
     client: discord.Client,
     guild_id: int | None,
-    member_id: int,
+    member_id: int | str,
     duration: str,
     reason: str | None,
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
+    member = await resolve_member_selector(guild, member_id, client=client)
     until = discord.utils.utcnow() + parse_duration(duration)
     await member.timeout(until, reason=reason or "discord_cli member timeout")
     return {
@@ -296,28 +311,37 @@ async def action_member_timeout(
 
 
 async def action_member_untimeout(
-    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    member_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
-    await member.timeout(None, reason="discord_cli member untimeout")
+    member = await resolve_member_selector(guild, member_id, client=client)
+    await member.timeout(None, reason=reason or "discord_cli member untimeout")
     return {"untimeout": member_to_dict(member, detailed=True, rest_mode=is_rest_mode(client))}
 
 
 async def action_member_nickname(
-    client: discord.Client, guild_id: int | None, member_id: int, nickname: str, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    member_id: int | str,
+    nickname: str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
-    await member.edit(nick=nickname or None, reason="discord_cli member nickname")
+    member = await resolve_member_selector(guild, member_id, client=client)
+    await member.edit(nick=nickname or None, reason=reason or "discord_cli member nickname")
     return {"updated": member_to_dict(member, detailed=True, rest_mode=is_rest_mode(client))}
 
 
 async def action_member_roles(
-    client: discord.Client, guild_id: int | None, member_id: int, **_: Any
+    client: discord.Client, guild_id: int | None, member_id: int | str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
+    member = await resolve_member_selector(guild, member_id, client=client)
     rest = is_rest_mode(client)
     return {
         "member": member_to_dict(member, rest_mode=rest),

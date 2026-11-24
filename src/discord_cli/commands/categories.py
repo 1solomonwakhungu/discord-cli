@@ -8,8 +8,9 @@ import click
 import discord
 
 from discord_cli.errors import CliError
-from discord_cli.models import channel_to_dict, fetch_guild_channels, get_guild, resolve_category
+from discord_cli.models import channel_to_dict, fetch_guild_channels, get_guild
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_category_selector
 
 
 @registry.group("category")
@@ -32,19 +33,19 @@ def category_create(ctx: click.Context, name: str, position: int | None) -> None
 
 
 @category_group.command("delete")
-@click.argument("category_id", type=int)
+@click.argument("category_id", type=RESOURCE_ID)
 @click.pass_context
-def category_delete(ctx: click.Context, category_id: int) -> None:
+def category_delete(ctx: click.Context, category_id: int | str) -> None:
     invoke(ctx, action_category_delete, category_id=category_id)
 
 
 @category_group.command("edit")
-@click.argument("category_id", type=int)
+@click.argument("category_id", type=RESOURCE_ID)
 @click.option("--name", default=None)
 @click.option("--position", type=int, default=None)
 @click.pass_context
 def category_edit(
-    ctx: click.Context, category_id: int, name: str | None, position: int | None
+    ctx: click.Context, category_id: int | str, name: str | None, position: int | None
 ) -> None:
     invoke(ctx, action_category_edit, category_id=category_id, name=name, position=position)
 
@@ -62,32 +63,41 @@ async def action_category_list(client: discord.Client, guild_id: int | None, **_
 
 
 async def action_category_create(
-    client: discord.Client, guild_id: int | None, name: str, position: int | None, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    name: str,
+    position: int | None,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
     category = await guild.create_category(
         name,
         position=position,
-        reason="discord_cli category create",  # type: ignore[arg-type]
+        reason=reason or "discord_cli category create",  # type: ignore[arg-type]
     )
     return {"created": channel_to_dict(category, detailed=True)}
 
 
 async def action_category_delete(
-    client: discord.Client, guild_id: int | None, category_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    category_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    category = await resolve_category(guild, category_id, client=client)
+    category = await resolve_category_selector(guild, category_id, client=client)
     data = channel_to_dict(category)  # type: ignore[arg-type]
-    await category.delete(reason="discord_cli category delete")  # type: ignore[union-attr]
+    await category.delete(reason=reason or "discord_cli category delete")  # type: ignore[union-attr]
     return {"deleted": data}
 
 
 async def action_category_edit(
-    client: discord.Client, guild_id: int | None, category_id: int, **kwargs: Any
+    client: discord.Client, guild_id: int | None, category_id: int | str, **kwargs: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    category = await resolve_category(guild, category_id, client=client)
+    category = await resolve_category_selector(guild, category_id, client=client)
     edits = {
         k: v
         for k, v in {"name": kwargs.get("name"), "position": kwargs.get("position")}.items()
@@ -95,5 +105,6 @@ async def action_category_edit(
     }
     if not edits:
         raise CliError("No edits provided")
-    edited = await category.edit(**edits, reason="discord_cli category edit")  # type: ignore[union-attr]
+    reason = kwargs.get("reason") or "discord_cli category edit"
+    edited = await category.edit(**edits, reason=reason)  # type: ignore[union-attr]
     return {"updated": channel_to_dict(edited or category, detailed=True)}  # type: ignore[arg-type]

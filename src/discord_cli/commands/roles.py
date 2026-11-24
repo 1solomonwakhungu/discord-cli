@@ -11,15 +11,14 @@ from discord_cli.errors import CliError
 from discord_cli.models import (
     fetch_guild_roles,
     get_guild,
-    get_member,
     is_rest_mode,
     member_to_dict,
     parse_color,
     parse_permissions,
-    resolve_role,
     role_to_dict,
 )
 from discord_cli.registry import TRI_STATE_BOOL, invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_member_selector, resolve_role_selector
 
 
 @registry.group("role")
@@ -60,14 +59,14 @@ def role_create(
 
 
 @role_group.command("delete")
-@click.argument("role_id", type=int)
+@click.argument("role_id", type=RESOURCE_ID)
 @click.pass_context
-def role_delete(ctx: click.Context, role_id: int) -> None:
+def role_delete(ctx: click.Context, role_id: int | str) -> None:
     invoke(ctx, action_role_delete, role_id=role_id)
 
 
 @role_group.command("edit")
-@click.argument("role_id", type=int)
+@click.argument("role_id", type=RESOURCE_ID)
 @click.option("--name", default=None)
 @click.option("--color", default=None)
 @click.option("--permissions", default=None)
@@ -76,7 +75,7 @@ def role_delete(ctx: click.Context, role_id: int) -> None:
 @click.pass_context
 def role_edit(
     ctx: click.Context,
-    role_id: int,
+    role_id: int | str,
     name: str | None,
     color: str | None,
     permissions: str | None,
@@ -96,25 +95,25 @@ def role_edit(
 
 
 @role_group.command("assign")
-@click.argument("role_id", type=int)
-@click.argument("user_id", type=int)
+@click.argument("role_id", type=RESOURCE_ID)
+@click.argument("user_id", type=RESOURCE_ID)
 @click.pass_context
-def role_assign(ctx: click.Context, role_id: int, user_id: int) -> None:
+def role_assign(ctx: click.Context, role_id: int | str, user_id: int | str) -> None:
     invoke(ctx, action_role_assign, role_id=role_id, user_id=user_id)
 
 
 @role_group.command("remove")
-@click.argument("role_id", type=int)
-@click.argument("user_id", type=int)
+@click.argument("role_id", type=RESOURCE_ID)
+@click.argument("user_id", type=RESOURCE_ID)
 @click.pass_context
-def role_remove(ctx: click.Context, role_id: int, user_id: int) -> None:
+def role_remove(ctx: click.Context, role_id: int | str, user_id: int | str) -> None:
     invoke(ctx, action_role_remove, role_id=role_id, user_id=user_id)
 
 
 @role_group.command("info")
-@click.argument("role_id", type=int)
+@click.argument("role_id", type=RESOURCE_ID)
 @click.pass_context
-def role_info(ctx: click.Context, role_id: int) -> None:
+def role_info(ctx: click.Context, role_id: int | str) -> None:
     invoke(ctx, action_role_info, role_id=role_id)
 
 
@@ -133,26 +132,30 @@ async def action_role_create(client: discord.Client, guild_id: int | None, **kwa
         permissions=parse_permissions(kwargs.get("permissions")) or discord.Permissions.none(),
         mentionable=kwargs.get("mentionable") or False,
         hoist=kwargs.get("hoist") or False,
-        reason="discord_cli role create",
+        reason=kwargs.get("reason") or "discord_cli role create",
     )
     return {"created": role_to_dict(role, rest_mode=is_rest_mode(client))}
 
 
 async def action_role_delete(
-    client: discord.Client, guild_id: int | None, role_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    role_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    role = await resolve_role(guild, role_id, client=client)
+    role = await resolve_role_selector(guild, role_id, client=client)
     data = role_to_dict(role, rest_mode=is_rest_mode(client))
-    await role.delete(reason="discord_cli role delete")
+    await role.delete(reason=reason or "discord_cli role delete")
     return {"deleted": data}
 
 
 async def action_role_edit(
-    client: discord.Client, guild_id: int | None, role_id: int, **kwargs: Any
+    client: discord.Client, guild_id: int | None, role_id: int | str, **kwargs: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    role = await resolve_role(guild, role_id, client=client)
+    role = await resolve_role_selector(guild, role_id, client=client)
     edits: dict[str, Any] = {}
     if kwargs.get("name") is not None:
         edits["name"] = kwargs["name"]
@@ -166,17 +169,22 @@ async def action_role_edit(
         edits["hoist"] = kwargs["hoist"]
     if not edits:
         raise CliError("No edits provided")
-    edited = await role.edit(**edits, reason="discord_cli role edit")
+    edited = await role.edit(**edits, reason=kwargs.get("reason") or "discord_cli role edit")
     return {"updated": role_to_dict(edited or role, rest_mode=is_rest_mode(client))}
 
 
 async def action_role_assign(
-    client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    role_id: int | str,
+    user_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, user_id)
-    role = await resolve_role(guild, role_id, client=client)
-    await member.add_roles(role, reason="discord_cli role assign")
+    member = await resolve_member_selector(guild, user_id, client=client)
+    role = await resolve_role_selector(guild, role_id, client=client)
+    await member.add_roles(role, reason=reason or "discord_cli role assign")
     rest = is_rest_mode(client)
     return {
         "assigned": {
@@ -187,12 +195,17 @@ async def action_role_assign(
 
 
 async def action_role_remove(
-    client: discord.Client, guild_id: int | None, role_id: int, user_id: int, **_: Any
+    client: discord.Client,
+    guild_id: int | None,
+    role_id: int | str,
+    user_id: int | str,
+    reason: str | None = None,
+    **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, user_id)
-    role = await resolve_role(guild, role_id, client=client)
-    await member.remove_roles(role, reason="discord_cli role remove")
+    member = await resolve_member_selector(guild, user_id, client=client)
+    role = await resolve_role_selector(guild, role_id, client=client)
+    await member.remove_roles(role, reason=reason or "discord_cli role remove")
     rest = is_rest_mode(client)
     return {
         "removed": {
@@ -203,8 +216,8 @@ async def action_role_remove(
 
 
 async def action_role_info(
-    client: discord.Client, guild_id: int | None, role_id: int, **_: Any
+    client: discord.Client, guild_id: int | None, role_id: int | str, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    role = await resolve_role(guild, role_id, client=client)
+    role = await resolve_role_selector(guild, role_id, client=client)
     return role_to_dict(role, rest_mode=is_rest_mode(client))

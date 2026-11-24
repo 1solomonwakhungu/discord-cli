@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import urllib.parse
 from typing import Any
 
 import click
@@ -10,6 +9,7 @@ import discord
 
 from discord_cli.errors import CliError
 from discord_cli.message_builder import parse_json_payload
+from discord_cli.policy import canonicalize_api_endpoint
 from discord_cli.registry import invoke, registry
 
 _ALLOWED_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
@@ -57,31 +57,7 @@ def api_request(
 
 
 def _validate_endpoint(endpoint: str) -> str:
-    if any(ord(ch) <= 0x20 or ord(ch) == 0x7F for ch in endpoint):
-        raise CliError("Endpoint contains forbidden whitespace or control characters.")
-    if not endpoint.startswith("/") or endpoint.startswith("//"):
-        raise CliError(
-            f"Invalid Discord API endpoint {endpoint!r}. Must be a relative path starting with '/'."
-        )
-    split = urllib.parse.urlsplit(endpoint)
-    if split.scheme or split.netloc or "://" in split.path or "\\" in split.path:
-        raise CliError(
-            f"Invalid Discord API endpoint {endpoint!r}. Must be a relative path starting with '/'."
-        )
-    # Reject path traversal segments in both raw and percent-decoded forms.
-    for candidate in (
-        split.path,
-        urllib.parse.unquote(split.path),
-        urllib.parse.unquote(urllib.parse.unquote(split.path)),
-    ):
-        if "\\" in candidate:
-            raise CliError(f"Invalid Discord API endpoint {endpoint!r}: backslashes not allowed.")
-        segments = candidate.split("/")
-        if ".." in segments or "." in segments:
-            raise CliError(
-                f"Invalid Discord API endpoint {endpoint!r}: path traversal segments are forbidden."
-            )
-    return endpoint
+    return canonicalize_api_endpoint(endpoint)
 
 
 def _parse_query_params(pairs: list[str]) -> dict[str, str]:

@@ -34,8 +34,12 @@ Show the version and exit.
 \fB\-\-token TEXT\fR
 Discord bot token. Overrides DISCORD_BOT_TOKEN and .env.
 .TP
-\fB\-\-guild INTEGER\fR
-Target guild ID. Required when the bot is in more than one guild.
+\fB\-\-guild RESOURCE\fR
+Target guild ID or config alias. Required when the bot is in more than one
+guild.
+.TP
+\fB\-\-profile TEXT\fR
+Configuration profile name from config.toml.
 .TP
 \fB\-\-human\fR
 Render human\-readable tables instead of the default JSON output.
@@ -70,6 +74,37 @@ Print only primary resource IDs (one per line).
 .TP
 \fB\-\-output TEXT\fR
 Write formatted output atomically to a file path.
+.TP
+\fB\-\-policy {read\-only|allow\-write|allow\-destructive}\fR
+Safety policy ceiling: read\-only, allow\-write, or allow\-destructive. One
+of: read\-only, allow\-write, allow\-destructive.
+.TP
+\fB\-\-dry\-run\fR
+Preview a mutating command and return a confirm_token without modifying
+Discord.
+.TP
+\fB\-\-yes\fR
+Confirm a destructive command when DISCORD_CLI_REQUIRE_CONFIRM=1 is active.
+.TP
+\fB\-\-confirm\-token TEXT\fR
+Confirmation token obtained from \-\-dry\-run for destructive commands.
+.TP
+\fB\-\-max\-mutations INTEGER RANGE\fR
+Maximum bulk mutations allowed (e.g. for message purge).
+.TP
+\fB\-\-reason TEXT\fR
+Default Discord audit log reason for mutating commands.
+.TP
+\fB\-\-untrusted\-envelope\fR
+Wrap untrusted Discord text fields in a random\-nonce XML boundary for
+prompt\-injection defense.
+.TP
+\fB\-\-redact\-pii\fR
+Redact emails, tokens, API keys, JWTs, and webhook secrets from output.
+.TP
+\fB\-\-semantic\-exit\-codes\fR
+Return semantic exit codes (3=auth, 4=not found, 5=permission, 6=policy,
+7=rate limit).
 .SH COMMANDS
 Commands are grouped by the Discord resource they operate on. Each group is
 documented in its own section below.
@@ -81,11 +116,24 @@ handling.
 \fBaudit\fR
 Inspect guild audit logs for moderation and security triage.
 .TP
+\fBauth\fR
+Manage bot authentication profiles and optional OS keyring credentials.
+.TP
 \fBcategory\fR
 Manage channel categories.
 .TP
 \fBchannel\fR
 Manage guild channels.
+.TP
+\fBcompletion\fR
+Generate shell completion scripts for bash, zsh, or fish.
+.TP
+\fBconfig\fR
+Inspect and manage discord\-cli TOML configuration and guild aliases.
+.TP
+\fBdescribe\fR
+Introspect CLI commands, JSON Schemas, risk levels, and required
+permissions.
 .TP
 \fBdoctor\fR
 Diagnose bot token, privileged intents, role hierarchy, and permissions.
@@ -183,8 +231,8 @@ Filter by AuditLogAction name
 .RE
 .RS 4
 .TP
-\fB\-\-user INTEGER\fR
-Filter by actor user ID
+\fB\-\-user RESOURCE\fR
+Filter by actor user ID or selector
 .RE
 .RS 4
 .TP
@@ -215,6 +263,75 @@ Options:
 .TP
 \fB\-\-limit INTEGER\fR
 Max recent audit entries to scan (default: 50) Defaults to 50.
+.RE
+.SH AUTH
+Manage bot authentication profiles and optional OS keyring credentials.
+.SS discord\-cli auth login
+.nf
+discord\-cli auth login [OPTIONS]
+.fi
+.PP
+Configure a profile and optionally store its bot token in the OS keyring.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-profile TEXT\fR
+Profile name (default: active).
+.RE
+.RS 4
+.TP
+\fB\-\-token TEXT\fR
+Bot token to store in OS keyring.
+.RE
+.RS 4
+.TP
+\fB\-\-guild INTEGER\fR
+Default guild ID.
+.RE
+.RS 4
+.TP
+\fB\-\-set\-default\fR
+Make this profile the default profile.
+.RE
+.SS discord\-cli auth logout
+.nf
+discord\-cli auth logout [OPTIONS]
+.fi
+.PP
+Remove stored OS keyring credentials for a profile.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-profile TEXT\fR
+Profile to remove from keyring.
+.RE
+.SS discord\-cli auth status
+.nf
+discord\-cli auth status [OPTIONS]
+.fi
+.PP
+Show active authentication profile, token source, and keyring availability.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-profile TEXT\fR
+Inspect a specific profile.
+.RE
+.SS discord\-cli auth switch
+.nf
+discord\-cli auth switch PROFILE_NAME
+.fi
+.PP
+Set the default active profile in config.toml.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBPROFILE_NAME\fR
+Profile name. Required.
 .RE
 .SH CATEGORY
 Manage channel categories.
@@ -296,7 +413,7 @@ One of: text, voice, stage, forum. Defaults to text.
 .RE
 .RS 4
 .TP
-\fB\-\-category INTEGER\fR
+\fB\-\-category RESOURCE\fR
 Set the category value.
 .RE
 .RS 4
@@ -398,8 +515,116 @@ Channel id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-category INTEGER\fR
+\fB\-\-category RESOURCE\fR
 Required.
+.RE
+.SH COMPLETION
+Generate shell completion scripts for bash, zsh, or fish.
+.SS discord\-cli completion generate
+.nf
+discord\-cli completion generate SHELL
+.fi
+.PP
+Output a shell completion script for bash, zsh, or fish.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBSHELL\fR
+Shell. Required.
+.RE
+.SH CONFIG
+Inspect and manage discord\-cli TOML configuration and guild aliases.
+.SS discord\-cli config get
+.nf
+discord\-cli config get KEY
+.fi
+.PP
+Read a dot\-separated key from the merged configuration.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBKEY\fR
+Key. Required.
+.RE
+.SS discord\-cli config list
+.nf
+discord\-cli config list
+.fi
+.PP
+Display the merged non\-secret configuration.
+.SS discord\-cli config path
+.nf
+discord\-cli config path
+.fi
+.PP
+Print user and project\-local configuration file paths.
+.SS discord\-cli config set
+.nf
+discord\-cli config set KEY VALUE
+.fi
+.PP
+Set a dot\-separated non\-secret key in user config.toml (e.g. guilds.prod
+123456).
+.PP
+Arguments:
+.RS 4
+.TP
+\fBKEY\fR
+Key. Required.
+.RE
+.RS 4
+.TP
+\fBVALUE\fR
+Value. Required.
+.RE
+.SH DESCRIBE
+Introspect CLI commands, JSON Schemas, risk levels, and required
+permissions.
+.SS discord\-cli describe command
+.nf
+discord\-cli describe command [PATH]...
+.fi
+.PP
+Return full JSON Schema and safety metadata for a specific command path.
+.PP
+Arguments:
+.RS 4
+.TP
+\fB[PATH]...\fR
+Path. Required.
+.RE
+.SS discord\-cli describe commands\-json
+.nf
+discord\-cli describe commands\-json
+.fi
+.PP
+Emit the full commands.json manifest generated from the live Click command
+tree.
+.SS discord\-cli describe list
+.nf
+discord\-cli describe list [OPTIONS]
+.fi
+.PP
+List available commands with risk levels and capability metadata.
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-compact\fR
+Compact summaries.
+.RE
+.RS 4
+.TP
+\fB\-\-group TEXT\fR
+Filter by top\-level command group.
+.RE
+.RS 4
+.TP
+\fB\-\-risk {read|write|destructive}\fR
+Filter by risk level (read, write, or destructive). One of: read, write,
+destructive.
 .RE
 .SH DOCTOR
 Diagnose bot token, privileged intents, role hierarchy, and permissions.
@@ -538,8 +763,8 @@ Create an invite.
 Options:
 .RS 4
 .TP
-\fB\-\-channel\-id INTEGER\fR
-Channel to create invite for Required.
+\fB\-\-channel\-id RESOURCE\fR
+Channel ID or selector to invite to Required.
 .RE
 .RS 4
 .TP
@@ -734,8 +959,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .SS discord\-cli message download
 .nf
@@ -754,8 +979,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .RS 4
 .TP
@@ -777,8 +1002,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .RS 4
 .TP
@@ -800,8 +1025,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .SS discord\-cli message list
 .nf
@@ -848,8 +1073,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .SS discord\-cli message pins
 .nf
@@ -888,8 +1113,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .SS discord\-cli message purge
 .nf
@@ -911,7 +1136,7 @@ Required.
 .RE
 .RS 4
 .TP
-\fB\-\-user INTEGER\fR
+\fB\-\-user RESOURCE\fR
 Set the user id value.
 .RE
 .RS 4
@@ -934,8 +1159,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .RS 4
 .TP
@@ -1005,8 +1230,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .SS discord\-cli message unreact
 .nf
@@ -1025,8 +1250,8 @@ Message id. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
-Required.
+\fB\-\-channel RESOURCE\fR
+Channel ID/selector (optional when message_id is a Discord message URL).
 .RE
 .RS 4
 .TP
@@ -1035,8 +1260,8 @@ Required.
 .RE
 .RS 4
 .TP
-\fB\-\-user INTEGER\fR
-Remove reaction from this user ID (default: bot)
+\fB\-\-user RESOURCE\fR
+Remove reaction from this user ID/selector (default: bot)
 .RE
 .SH PERMISSIONS
 Manage per\-channel permission overwrites.
@@ -1048,7 +1273,7 @@ discord\-cli permissions list [OPTIONS]
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
+\fB\-\-channel RESOURCE\fR
 Required.
 .RE
 .SS discord\-cli permissions reset
@@ -1059,17 +1284,17 @@ discord\-cli permissions reset [OPTIONS]
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
+\fB\-\-channel RESOURCE\fR
 Required.
 .RE
 .RS 4
 .TP
-\fB\-\-role INTEGER\fR
+\fB\-\-role RESOURCE\fR
 Set the role id value.
 .RE
 .RS 4
 .TP
-\fB\-\-user INTEGER\fR
+\fB\-\-user RESOURCE\fR
 Set the user id value.
 .RE
 .SS discord\-cli permissions set
@@ -1080,17 +1305,17 @@ discord\-cli permissions set [OPTIONS]
 Options:
 .RS 4
 .TP
-\fB\-\-channel INTEGER\fR
+\fB\-\-channel RESOURCE\fR
 Required.
 .RE
 .RS 4
 .TP
-\fB\-\-role INTEGER\fR
+\fB\-\-role RESOURCE\fR
 Set the role id value.
 .RE
 .RS 4
 .TP
-\fB\-\-user INTEGER\fR
+\fB\-\-user RESOURCE\fR
 Set the user id value.
 .RE
 .RS 4
@@ -1280,8 +1505,8 @@ Query. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel\-id INTEGER\fR
-Channel to search in
+\fB\-\-channel\-id RESOURCE\fR
+Channel ID or selector to search in
 .RE
 .RS 4
 .TP
@@ -1325,8 +1550,8 @@ Name. Required.
 Options:
 .RS 4
 .TP
-\fB\-\-channel\-id INTEGER\fR
-Channel to create the thread in Required.
+\fB\-\-channel\-id RESOURCE\fR
+Channel ID or selector to create thread in Required.
 .RE
 .RS 4
 .TP
@@ -1362,8 +1587,8 @@ List all threads.
 Options:
 .RS 4
 .TP
-\fB\-\-channel\-id INTEGER\fR
-Filter by channel ID
+\fB\-\-channel\-id RESOURCE\fR
+Filter by channel ID or selector
 .RE
 .SS discord\-cli threads members
 .nf

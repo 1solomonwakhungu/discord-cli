@@ -1,0 +1,160 @@
+name: "discord-cli"
+description: "Run JSON-first Discord management, messaging, webhook, and audit commands via discord-cli."
+author: "Solomon Wakhungu"
+branding:
+  icon: "message-square"
+  color: "purple"
+
+inputs:
+  token:
+    description: "Discord bot token (optional for webhook send/edit-message/delete-message/fetch-message)."
+    required: false
+    default: ""
+  guild:
+    description: "Target Discord guild ID or config alias."
+    required: false
+    default: ""
+  args:
+    description: "Arguments passed to discord-cli (parsed safely via POSIX shlex, e.g. 'channel list --compact')."
+    required: true
+  version:
+    description: "Pin a specific discordcli-agents PyPI version (e.g. '1.8.0') or leave empty for latest."
+    required: false
+    default: ""
+  plugins:
+    description: "Allow loading third-party discord_cli.plugins entry points ('true' or 'false')."
+    required: false
+    default: "false"
+  policy:
+    description: "Safety policy ceiling: read-only, allow-write, or allow-destructive."
+    required: false
+    default: ""
+  dry-run:
+    description: "If 'true', pass --dry-run to preview mutations without changing Discord."
+    required: false
+    default: "false"
+
+outputs:
+  json:
+    description: "Raw JSON payload printed by discord-cli."
+    value: ${{ steps.run.outputs.json }}
+  ok:
+    description: "Boolean string ('true' or 'false') from the response envelope."
+    value: ${{ steps.run.outputs.ok }}
+  data:
+    description: "Serialized JSON of the response's data field (empty on error)."
+    value: ${{ steps.run.outputs.data }}
+  error:
+    description: "Serialized JSON of the response's error field (empty on success)."
+    value: ${{ steps.run.outputs.error }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Execute discord-cli
+      id: run
+      shell: bash
+      env:
+        DISCORD_BOT_TOKEN: ${{ inputs.token }}
+        INPUT_GUILD: ${{ inputs.guild }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_PLUGINS: ${{ inputs.plugins }}
+        INPUT_POLICY: ${{ inputs.policy }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        python3 - <<'PY'
+        import json
+        import os
+        import re
+        import shlex
+        import subprocess
+        import sys
+        import uuid
+
+        version = os.environ.get("INPUT_VERSION", "").strip()
+        if version:
+            if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z0-9._-]*)?", version):
+                print(f"::error::Invalid version specifier: {version!r}", file=sys.stderr)
+                sys.exit(2)
+            pkg = f"discordcli-agents=={version}"
+        else:
+            pkg = "discordcli-agents"
+
+        child_env = os.environ.copy()
+        cmd = ["uvx", "--from", pkg, "discord-cli"]
+
+        if os.environ.get("INPUT_PLUGINS", "false").strip().lower() != "true":
+            child_env["DISCORD_CLI_NO_PLUGINS"] = "1"
+            cmd.append("--no-plugins")
+
+        guild = os.environ.get("INPUT_GUILD", "").strip()
+        if guild:
+            cmd.extend(["--guild", guild])
+
+        # Enforce policy via environment ceiling so `args` can NEVER widen it!
+        policy = os.environ.get("INPUT_POLICY", "").strip()
+        if policy:
+            child_env["DISCORD_CLI_POLICY"] = policy
+
+        if os.environ.get("INPUT_DRY_RUN", "false").strip().lower() == "true":
+            cmd.append("--dry-run")
+
+        raw_args = os.environ.get("INPUT_ARGS", "").strip()
+        if not raw_args:
+            print("::error::Input 'args' must not be empty.", file=sys.stderr)
+            sys.exit(2)
+
+        try:
+            parsed_args = shlex.split(raw_args)
+        except ValueError as exc:
+            print(f"::error::Invalid shell quoting in 'args': {exc}", file=sys.stderr)
+            sys.exit(2)
+
+        cmd.extend(parsed_args)
+
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=child_env)
+        stdout = proc.stdout.strip()
+
+        # Prevent untrusted Discord output from injecting GitHub workflow commands (::set-env, etc.).
+        stop_token = f"dcli-stop-{uuid.uuid4().hex}"
+        if proc.stderr or stdout:
+            print(f"::stop-commands::{stop_token}", flush=True)
+            if proc.stderr:
+                sys.stderr.write(proc.stderr)
+                sys.stderr.flush()
+            if stdout:
+                print(stdout, flush=True)
+            print(f"::{stop_token}::", flush=True)
+
+        ok_val = "false"
+        data_val = ""
+        error_val = ""
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict):
+                ok_val = "true" if parsed.get("ok") else "false"
+                if "data" in parsed:
+                    data_val = json.dumps(parsed["data"], separators=(",", ":"))
+                if "error" in parsed:
+                    error_val = json.dumps(parsed["error"], separators=(",", ":"))
+        except json.JSONDecodeError:
+            ok_val = "true" if proc.returncode == 0 else "false"
+
+        gh_out = os.environ.get("GITHUB_OUTPUT")
+        if gh_out:
+            delimiter = f"DCLI_EOF_{uuid.uuid4().hex}"
+            with open(gh_out, "a", encoding="utf-8") as fh:
+                for key, value in (
+                    ("json", stdout),
+                    ("ok", ok_val),
+                    ("data", data_val),
+                    ("error", error_val),
+                ):
+                    fh.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
+
+        sys.exit(proc.returncode)
+        PY

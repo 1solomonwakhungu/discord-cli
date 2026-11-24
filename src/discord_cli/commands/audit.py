@@ -10,6 +10,7 @@ import discord
 from discord_cli.errors import CliError
 from discord_cli.models import get_guild, iso
 from discord_cli.registry import invoke, registry
+from discord_cli.resolvers import RESOURCE_ID, resolve_member_id
 
 
 @registry.group("audit")
@@ -20,7 +21,9 @@ def audit_group() -> None:
 @audit_group.command("list")
 @click.option("--limit", type=int, default=50, help="Max audit log entries to fetch (default: 50)")
 @click.option("--action", "action_name", default=None, help="Filter by AuditLogAction name")
-@click.option("--user", "user_id", type=int, default=None, help="Filter by actor user ID")
+@click.option(
+    "--user", "user_id", type=RESOURCE_ID, default=None, help="Filter by actor user ID or selector"
+)
 @click.option("--before", "before_id", type=int, default=None, help="Fetch entries before this ID")
 @click.option("--after", "after_id", type=int, default=None, help="Fetch entries after this ID")
 @click.pass_context
@@ -28,7 +31,7 @@ def audit_list(
     ctx: click.Context,
     limit: int,
     action_name: str | None,
-    user_id: int | None,
+    user_id: int | str | None,
     before_id: int | None,
     after_id: int | None,
 ) -> None:
@@ -45,12 +48,12 @@ def audit_list(
 
 
 @audit_group.command("user")
-@click.argument("user_id", type=int)
+@click.argument("user_id", type=RESOURCE_ID)
 @click.option(
     "--limit", type=int, default=50, help="Max recent audit entries to scan (default: 50)"
 )
 @click.pass_context
-def audit_user(ctx: click.Context, user_id: int, limit: int) -> None:
+def audit_user(ctx: click.Context, user_id: int | str, limit: int) -> None:
     """List audit log entries performed by or targeting a specific user ID."""
     invoke(ctx, action_audit_user, user_id=user_id, limit=limit)
 
@@ -90,7 +93,7 @@ async def action_audit_list(
     guild_id: int | None,
     limit: int = 50,
     action_name: str | None = None,
-    user_id: int | None = None,
+    user_id: int | str | None = None,
     before_id: int | None = None,
     after_id: int | None = None,
     **_: Any,
@@ -103,7 +106,8 @@ async def action_audit_list(
     if action_enum is not None:
         kwargs["action"] = action_enum
     if user_id is not None:
-        kwargs["user"] = discord.Object(id=user_id)
+        resolved_uid = await resolve_member_id(guild, user_id, client=client)
+        kwargs["user"] = discord.Object(id=resolved_uid)
     if before_id is not None:
         kwargs["before"] = discord.Object(id=before_id)
     if after_id is not None:
@@ -116,19 +120,25 @@ async def action_audit_list(
 async def action_audit_user(
     client: discord.Client,
     guild_id: int | None,
-    user_id: int,
+    user_id: int | str,
     limit: int = 50,
     **_: Any,
 ) -> dict[str, Any]:
     if limit <= 0:
         raise CliError("--limit must be a positive integer")
     guild = await get_guild(client, guild_id)
+    resolved_uid = await resolve_member_id(guild, user_id, client=client)
     matched: list[dict[str, Any]] = []
     async for entry in guild.audit_logs(limit=limit):
         actor_id = getattr(getattr(entry, "user", None), "id", None)
         target_id = getattr(getattr(entry, "target", None), "id", None)
-        if actor_id == user_id or target_id == user_id:
+        if actor_id == resolved_uid or target_id == resolved_uid:
             record = _audit_entry_to_dict(entry)
-            record["role_in_entry"] = "actor" if actor_id == user_id else "target"
+            record["role_in_entry"] = "actor" if actor_id == resolved_uid else "target"
             matched.append(record)
-    return {"guild_id": guild.id, "user_id": user_id, "count": len(matched), "entries": matched}
+    return {
+        "guild_id": guild.id,
+        "user_id": resolved_uid,
+        "count": len(matched),
+        "entries": matched,
+    }

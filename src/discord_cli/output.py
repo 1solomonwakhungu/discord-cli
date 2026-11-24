@@ -38,6 +38,8 @@ class OutputOptions:
     string_ids: bool = False
     quiet: bool = False
     output_path: str | None = None
+    untrusted_envelope: bool = False
+    redact_pii: bool = False
 
     @property
     def effective_format(self) -> str:
@@ -151,20 +153,36 @@ def _serialize_json(payload: dict[str, Any], *, compact: bool = False) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
-def _truncate_strings(obj: Any, max_str_len: int) -> Any:
-    if isinstance(obj, str) and len(obj) > max_str_len:
-        return obj[: max(0, max_str_len - 3)] + "..."
+def _truncate_strings(obj: Any, max_str_len: int, *, envelope_tag: str | None = None) -> Any:
+    if isinstance(obj, str):
+        if envelope_tag:
+            prefix = f"<{envelope_tag}>"
+            suffix = f"</{envelope_tag}>"
+            if obj.startswith(prefix) and obj.endswith(suffix):
+                inner = obj[len(prefix) : -len(suffix)]
+                if len(inner) > max_str_len:
+                    inner = inner[: max(0, max_str_len - 3)] + "..."
+                return f"{prefix}{inner}{suffix}"
+        if len(obj) > max_str_len:
+            return obj[: max(0, max_str_len - 3)] + "..."
+        return obj
     if isinstance(obj, list):
-        return [_truncate_strings(item, max_str_len) for item in obj]
+        return [_truncate_strings(item, max_str_len, envelope_tag=envelope_tag) for item in obj]
     if isinstance(obj, dict):
-        return {k: _truncate_strings(v, max_str_len) for k, v in obj.items()}
+        return {
+            k: _truncate_strings(v, max_str_len, envelope_tag=envelope_tag) for k, v in obj.items()
+        }
     return obj
 
 
 def enforce_max_chars(
     payload: dict[str, Any], max_chars: int, *, compact: bool = False
 ) -> dict[str, Any]:
-    """Ensure serialized JSON stays <= max_chars (for max_chars >= 256) while remaining valid JSON."""
+    """Ensure serialized JSON stays <= max_chars (for max_chars >= 256) while remaining valid JSON.
+
+    When an untrusted envelope (`payload["security"]`) is present, preserves BOTH the
+    `security` block and every `<tag>...</tag>` boundary intact.
+    """
     if max_chars <= 0:
         return payload
     serialized = _serialize_json(payload, compact=compact)
@@ -172,6 +190,24 @@ def enforce_max_chars(
         return payload
 
     working: dict[str, Any] = json.loads(json.dumps(payload, default=str))
+    security_block: dict[str, Any] | None = (
+        working.get("security") if isinstance(working.get("security"), dict) else None
+    )
+    envelope_tag: str | None = (
+        str(security_block["boundary_tag"])
+        if security_block and isinstance(security_block.get("boundary_tag"), str)
+        else None
+    )
+    compact_security: dict[str, Any] | None = (
+        {
+            "provenance": security_block.get("provenance", "untrusted_discord_user_content"),
+            "boundary_tag": envelope_tag,
+            "boundary_nonce": security_block.get("boundary_nonce", ""),
+        }
+        if security_block and envelope_tag
+        else None
+    )
+
     meta: dict[str, Any] = dict(working.get("meta") or {})
     meta["truncated"] = True
     meta["max_chars"] = max_chars
@@ -179,23 +215,38 @@ def enforce_max_chars(
         f"Output exceeded --max-chars {max_chars}. Re-run with narrower --fields or smaller --limit."
     )
 
+    def _with_security(candidate: dict[str, Any], *, short_sec: bool = False) -> dict[str, Any]:
+        if security_block is not None:
+            candidate["security"] = compact_security if short_sec else security_block
+        return candidate
+
     if not working.get("ok", True):
         err = working.get("error")
         err_type = err.get("type", "Error") if isinstance(err, dict) else "Error"
         err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-        for cap in (200, 80, 40, 20, 8):
-            candidate_err: dict[str, Any] = {
-                "type": str(err_type)[:40],
-                "message": _truncate_strings(str(err_msg), cap),
-            }
-            candidate = {"ok": False, "error": candidate_err, "meta": {"truncated": True}}
-            if len(_serialize_json(candidate, compact=compact)) <= max_chars:
-                return candidate
-        return {
-            "ok": False,
-            "error": {"type": "Error", "message": "..."},
-            "meta": {"truncated": True},
-        }
+        for short_sec in (False, True):
+            for cap in (200, 80, 40, 20, 8):
+                candidate_err: dict[str, Any] = {
+                    "type": str(err_type)[:40],
+                    "message": _truncate_strings(str(err_msg), cap, envelope_tag=envelope_tag),
+                }
+                candidate = _with_security(
+                    {"ok": False, "error": candidate_err, "meta": {"truncated": True}},
+                    short_sec=short_sec,
+                )
+                if len(_serialize_json(candidate, compact=compact)) <= max_chars:
+                    return candidate
+        return _with_security(
+            {
+                "ok": False,
+                "error": {
+                    "type": "Error",
+                    "message": f"<{envelope_tag}>...</{envelope_tag}>" if envelope_tag else "...",
+                },
+                "meta": {"truncated": True},
+            },
+            short_sec=True,
+        )
 
     data = working.get("data")
     omitted = 0
@@ -228,9 +279,9 @@ def enforce_max_chars(
             meta["omitted_items"] = len(full_items) - best
             working["meta"] = meta
             return working
-        # Even 1 full item didn't fit — try keeping the first item with truncated strings before dropping all!
+        # Even 1 full item didn't fit — try keeping the first item with truncated inner strings!
         for str_cap in (400, 200, 80, 32):
-            target_list[:] = [_truncate_strings(full_items[0], str_cap)]
+            target_list[:] = [_truncate_strings(full_items[0], str_cap, envelope_tag=envelope_tag)]
             omitted = len(full_items) - 1
             meta["omitted_items"] = omitted
             working["meta"] = meta
@@ -243,26 +294,38 @@ def enforce_max_chars(
         if len(_serialize_json(working, compact=compact)) <= max_chars:
             return working
 
-    # Strategy 2: Progressively truncate long string values inside data.
-    for str_cap in (200, 80, 32, 12):
-        working["data"] = _truncate_strings(working.get("data"), str_cap)
-        working["meta"] = meta
-        if len(_serialize_json(working, compact=compact)) <= max_chars:
-            return working
+    # Strategy 2: Progressively truncate long inner string values inside data (never breaking tags).
+    for short_sec in (False, True):
+        if security_block is not None:
+            working["security"] = compact_security if short_sec else security_block
+        for str_cap in (200, 80, 32, 12):
+            working["data"] = _truncate_strings(
+                working.get("data"), str_cap, envelope_tag=envelope_tag
+            )
+            working["meta"] = meta
+            if len(_serialize_json(working, compact=compact)) <= max_chars:
+                return working
 
-    # Strategy 3: Minimal valid JSON envelope.
-    minimal: dict[str, Any] = {
-        "ok": True,
-        "data": None,
-        "meta": {"truncated": True, "omitted_items": omitted, "max_chars": max_chars},
-    }
-    if len(_serialize_json(minimal, compact=compact)) <= max_chars:
-        return minimal
-    return {"ok": True, "data": None, "meta": {"truncated": True}}
+    # Strategy 3: Minimal valid JSON envelope (preserving security metadata when active).
+    for short_sec in (False, True):
+        minimal = _with_security(
+            {
+                "ok": True,
+                "data": None,
+                "meta": {"truncated": True, "omitted_items": omitted, "max_chars": max_chars},
+            },
+            short_sec=short_sec,
+        )
+        if len(_serialize_json(minimal, compact=compact)) <= max_chars:
+            return minimal
+    return _with_security(
+        {"ok": True, "data": None, "meta": {"truncated": True}},
+        short_sec=True,
+    )
 
 
 def shape_payload(payload: dict[str, Any], options: OutputOptions) -> dict[str, Any]:
-    """Apply --fields, --string-ids, and --max-chars shaping to a payload."""
+    """Apply --fields, --string-ids, --redact-pii, --untrusted-envelope, and --max-chars shaping."""
     shaped = dict(payload)
     meta = dict(shaped.get("meta") or {})
 
@@ -272,6 +335,20 @@ def shape_payload(payload: dict[str, Any], options: OutputOptions) -> dict[str, 
 
     if options.string_ids:
         shaped["data"] = stringify_ids(shaped.get("data"))
+
+    if options.redact_pii:
+        from discord_cli.policy import redact_pii
+
+        if shaped.get("ok") and "data" in shaped:
+            shaped["data"] = redact_pii(shaped["data"])
+        elif "error" in shaped:
+            shaped["error"] = redact_pii(shaped["error"])
+        meta["pii_redacted"] = True
+
+    if options.untrusted_envelope:
+        from discord_cli.policy import apply_untrusted_envelope
+
+        shaped = apply_untrusted_envelope(shaped)
 
     if meta:
         shaped["meta"] = meta
