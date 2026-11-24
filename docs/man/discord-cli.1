@@ -39,6 +39,13 @@ Target guild ID. Required when the bot is in more than one guild.
 .TP
 \fB\-\-human\fR
 Render human\-readable tables instead of the default JSON output.
+.TP
+\fB\-\-gateway\fR
+Use a WebSocket Gateway connection instead of the faster REST\-first
+default.
+.TP
+\fB\-\-no\-plugins\fR
+Disable loading third\-party discord_cli.plugins entry points.
 .SH COMMANDS
 Commands are grouped by the Discord resource they operate on. Each group is
 documented in its own section below.
@@ -987,7 +994,7 @@ Max results Defaults to 25.
 discord\-cli search messages [OPTIONS] QUERY
 .fi
 .PP
-Search messages in a channel.
+Search messages in a channel or across the guild.
 .PP
 Arguments:
 .RS 4
@@ -1005,7 +1012,12 @@ Channel to search in
 .RS 4
 .TP
 \fB\-\-limit INTEGER\fR
-Max results Defaults to 25.
+Max matched results to return Defaults to 25.
+.RE
+.RS 4
+.TP
+\fB\-\-scan\-limit INTEGER\fR
+Max messages to scan per channel (0 for unlimited) Defaults to 500.
 .RE
 .SH THREADS
 Manage server threads.
@@ -1123,6 +1135,11 @@ Required.
 \fB\-\-name TEXT\fR
 Required.
 .RE
+.RS 4
+.TP
+\fB\-\-show\-secrets\fR
+Include unredacted webhook URL tokens in the output.
+.RE
 .SS discord\-cli webhook delete
 .nf
 discord\-cli webhook delete WEBHOOK_ID
@@ -1136,7 +1153,7 @@ Webhook id. Required.
 .RE
 .SS discord\-cli webhook info
 .nf
-discord\-cli webhook info WEBHOOK_ID
+discord\-cli webhook info [OPTIONS] WEBHOOK_ID
 .fi
 .PP
 Arguments:
@@ -1144,6 +1161,13 @@ Arguments:
 .TP
 \fBWEBHOOK_ID\fR
 Webhook id. Required.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-show\-secrets\fR
+Include unredacted webhook URL tokens in the output.
 .RE
 .SS discord\-cli webhook list
 .nf
@@ -1155,6 +1179,11 @@ Options:
 .TP
 \fB\-\-channel INTEGER\fR
 Set the channel id value.
+.RE
+.RS 4
+.TP
+\fB\-\-show\-secrets\fR
+Include unredacted webhook URL tokens in the output.
 .RE
 .SH ENVIRONMENT
 .TP

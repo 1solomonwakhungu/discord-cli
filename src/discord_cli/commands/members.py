@@ -7,9 +7,12 @@ from typing import Any
 import click
 import discord
 
+from discord_cli.errors import CliError
 from discord_cli.models import (
+    fetch_guild_roles,
     get_guild,
     get_member,
+    is_rest_mode,
     iso,
     member_to_dict,
     parse_duration,
@@ -99,8 +102,72 @@ def member_roles(ctx: click.Context, member_id: int) -> None:
     invoke(ctx, action_member_roles, member_id=member_id)
 
 
+def _raw_member_to_dict(
+    raw: dict[str, Any], roles_by_id: dict[int, discord.Role]
+) -> dict[str, Any]:
+    user = raw.get("user") or {}
+    user_id = int(user["id"])
+    name = user.get("username", "")
+    nick = raw.get("nick")
+    global_name = user.get("global_name")
+    display_name = nick or global_name or name
+    role_ids = [int(rid) for rid in raw.get("roles", [])]
+    resolved_roles = [
+        {"id": rid, "name": roles_by_id[rid].name if rid in roles_by_id else str(rid)}
+        for rid in role_ids
+    ]
+    top_role_obj = max(
+        (roles_by_id[rid] for rid in role_ids if rid in roles_by_id),
+        key=lambda r: r.position,
+        default=None,
+    )
+    return {
+        "id": user_id,
+        "name": name,
+        "display_name": display_name,
+        "nick": nick,
+        "bot": bool(user.get("bot", False)),
+        "joined_at": raw.get("joined_at"),
+        "created_at": iso(discord.utils.snowflake_time(user_id)),
+        "roles": resolved_roles,
+        "top_role": {"id": top_role_obj.id, "name": top_role_obj.name} if top_role_obj else None,
+    }
+
+
+async def _fetch_members_rest(client: discord.Client, guild: discord.Guild) -> list[dict[str, Any]]:
+    roles = await fetch_guild_roles(guild, client=client)
+    roles_by_id = {r.id: r for r in roles}
+    all_members: list[dict[str, Any]] = []
+    after: int | None = None
+    while True:
+        batch = await client.http.get_members(guild.id, limit=1000, after=after)
+        if not batch:
+            break
+        for raw in batch:
+            all_members.append(_raw_member_to_dict(raw, roles_by_id))
+        if len(batch) < 1000:
+            break
+        after = int(batch[-1]["user"]["id"])
+    return all_members
+
+
 async def action_member_list(client: discord.Client, guild_id: int | None, **_: Any) -> Any:
     guild = await get_guild(client, guild_id)
+    rest = is_rest_mode(client)
+    if rest:
+        try:
+            members_data = await _fetch_members_rest(client, guild)
+            return {"guild_id": guild.id, "members": members_data}
+        except discord.Forbidden:
+            return {
+                "guild_id": guild.id,
+                "members": [],
+                "partial": True,
+                "warning": (
+                    "Server Members Intent is not enabled for this bot in the Discord Developer "
+                    "Portal; unable to list guild members."
+                ),
+            }
     try:
         members = [member async for member in guild.fetch_members(limit=None)]
         return {"guild_id": guild.id, "members": [member_to_dict(m) for m in members]}
@@ -119,7 +186,9 @@ async def action_member_info(
     client: discord.Client, guild_id: int | None, member_id: int, **_: Any
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    return member_to_dict(await get_member(guild, member_id), detailed=True)
+    return member_to_dict(
+        await get_member(guild, member_id), detailed=True, rest_mode=is_rest_mode(client)
+    )
 
 
 async def action_member_kick(
@@ -127,7 +196,7 @@ async def action_member_kick(
 ) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
-    data = member_to_dict(member)
+    data = member_to_dict(member, rest_mode=is_rest_mode(client))
     await member.kick(reason=reason or "discord_cli member kick")
     return {"kicked": data}
 
@@ -141,12 +210,21 @@ async def action_member_ban(
     **_: Any,
 ) -> Any:
     guild = await get_guild(client, guild_id)
-    member = await get_member(guild, member_id)
-    data = member_to_dict(member)
-    await member.ban(
-        reason=reason or "discord_cli member ban",
-        delete_message_seconds=max(0, delete_message_days) * 86400,
-    )
+    ban_reason = reason or "discord_cli member ban"
+    delete_seconds = min(max(0, delete_message_days) * 86400, 604800)
+    try:
+        member = await get_member(guild, member_id)
+    except (discord.NotFound, CliError):
+        # Hackban: user is not currently in the guild.
+        await guild.ban(
+            discord.Object(id=member_id),
+            reason=ban_reason,
+            delete_message_seconds=delete_seconds,
+        )
+        return {"banned": {"id": member_id, "hackban": True}}
+
+    data = member_to_dict(member, rest_mode=is_rest_mode(client))
+    await member.ban(reason=ban_reason, delete_message_seconds=delete_seconds)
     return {"banned": data}
 
 
@@ -171,7 +249,10 @@ async def action_member_timeout(
     member = await get_member(guild, member_id)
     until = discord.utils.utcnow() + parse_duration(duration)
     await member.timeout(until, reason=reason or "discord_cli member timeout")
-    return {"timed_out": member_to_dict(member, detailed=True), "until": iso(until)}
+    return {
+        "timed_out": member_to_dict(member, detailed=True, rest_mode=is_rest_mode(client)),
+        "until": iso(until),
+    }
 
 
 async def action_member_untimeout(
@@ -180,7 +261,7 @@ async def action_member_untimeout(
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
     await member.timeout(None, reason="discord_cli member untimeout")
-    return {"untimeout": member_to_dict(member, detailed=True)}
+    return {"untimeout": member_to_dict(member, detailed=True, rest_mode=is_rest_mode(client))}
 
 
 async def action_member_nickname(
@@ -189,7 +270,7 @@ async def action_member_nickname(
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
     await member.edit(nick=nickname or None, reason="discord_cli member nickname")
-    return {"updated": member_to_dict(member, detailed=True)}
+    return {"updated": member_to_dict(member, detailed=True, rest_mode=is_rest_mode(client))}
 
 
 async def action_member_roles(
@@ -197,4 +278,8 @@ async def action_member_roles(
 ) -> Any:
     guild = await get_guild(client, guild_id)
     member = await get_member(guild, member_id)
-    return {"member": member_to_dict(member), "roles": [role_to_dict(r) for r in member.roles]}
+    rest = is_rest_mode(client)
+    return {
+        "member": member_to_dict(member, rest_mode=rest),
+        "roles": [role_to_dict(r, rest_mode=rest) for r in member.roles],
+    }

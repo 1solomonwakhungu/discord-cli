@@ -1,8 +1,10 @@
-"""Discord bot lifecycle: connect, run a single action, print the result, exit."""
+"""Discord bot lifecycle: REST-first by default, with opt-in Gateway fallback."""
 
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 from typing import Any, Callable
@@ -16,11 +18,29 @@ from discord_cli.output import make_payload, print_output
 Action = Callable[..., Awaitable[Any]]
 
 
+def _format_exception(exc: Exception) -> dict[str, Any]:
+    error: dict[str, Any] = {"type": exc.__class__.__name__, "message": str(exc)}
+    if isinstance(exc, discord.HTTPException):
+        error.update({"status": exc.status, "code": exc.code})
+    return error
+
+
+class RestClient(discord.Client):
+    """A lightweight discord.Client that authenticates over REST only (zero Gateway IDENTIFY)."""
+
+    def __init__(self) -> None:
+        super().__init__(intents=discord.Intents.none())
+        self._discord_cli_transport = "rest"
+        self._discord_cli_cache: dict[Any, Any] = {}
+
+
 class ManagementClient(discord.Client):
-    """A discord.Client that runs a single action on_ready and then closes."""
+    """A discord.Client that runs a single action on_ready over the Gateway and then closes."""
 
     def __init__(self, action: Action, kwargs: dict[str, Any], intents: discord.Intents):
         super().__init__(intents=intents)
+        self._discord_cli_transport = "gateway"
+        self._discord_cli_cache: dict[Any, Any] = {}
         self.action = action
         self.kwargs = kwargs
         self.result: Any = None
@@ -30,11 +50,20 @@ class ManagementClient(discord.Client):
         try:
             self.result = await self.action(self, **self.kwargs)
         except Exception as exc:  # noqa: BLE001 - user-facing CLI boundary
-            self.error = {"type": exc.__class__.__name__, "message": str(exc)}
-            if isinstance(exc, discord.HTTPException):
-                self.error.update({"status": exc.status, "code": exc.code})
+            self.error = _format_exception(exc)
         finally:
             await self.close()
+
+
+@asynccontextmanager
+async def rest_session(client: RestClient, token: str) -> AsyncIterator[RestClient]:
+    """Authenticate `client` for REST calls and guarantee its HTTP session closes."""
+    try:
+        await client.login(token)
+        yield client
+    finally:
+        if not client.is_closed():
+            await client.close()
 
 
 @asynccontextmanager
@@ -55,7 +84,32 @@ def fallback_intents() -> discord.Intents:
     return intents
 
 
-async def _run_async(
+def _should_use_gateway(use_gateway: bool | None) -> bool:
+    if use_gateway is not None:
+        return use_gateway
+    env_transport = os.environ.get("DISCORD_CLI_TRANSPORT", "").strip().lower()
+    if env_transport == "gateway":
+        return True
+    env_flag = os.environ.get("DISCORD_CLI_GATEWAY", "").strip().lower()
+    return env_flag in {"1", "true", "yes", "on"}
+
+
+async def _run_rest_async(
+    action: Action, kwargs: dict[str, Any], token: str
+) -> tuple[Any, dict[str, Any] | None]:
+    client = RestClient()
+    try:
+        async with rest_session(client, token) as session:
+            try:
+                result = await action(session, **kwargs)
+                return result, None
+            except Exception as exc:  # noqa: BLE001 - user-facing CLI boundary
+                return None, _format_exception(exc)
+    except Exception as exc:  # noqa: BLE001 - user-facing CLI boundary
+        return None, _format_exception(exc)
+
+
+async def _run_gateway_async(
     action: Action, kwargs: dict[str, Any], token: str
 ) -> tuple[Any, dict[str, Any] | None]:
     last_error: dict[str, Any] | None = None
@@ -65,30 +119,55 @@ async def _run_async(
             async with bot_session(client, token) as session:
                 result, error = session.result, session.error
         except discord.PrivilegedIntentsRequired as exc:
-            last_error = {"type": exc.__class__.__name__, "message": str(exc)}
+            last_error = _format_exception(exc)
             continue
         except Exception as exc:  # noqa: BLE001 - user-facing CLI boundary
-            return None, {"type": exc.__class__.__name__, "message": str(exc)}
-        if last_error and error is None and isinstance(result, dict):
-            result.setdefault(
-                "warning",
-                "Retried with non-privileged intents because privileged intents are not enabled for this bot.",
+            return None, _format_exception(exc)
+        if last_error and error is None:
+            warning_msg = (
+                "Retried with non-privileged intents because privileged intents are not enabled "
+                "for this bot."
             )
+            if isinstance(result, dict):
+                result.setdefault("warning", warning_msg)
+            else:
+                print(f"Warning: {warning_msg}", file=sys.stderr)
         return result, error
     return None, last_error
 
 
-def run_bot(
-    action: Action, kwargs: dict[str, Any], token: str
+async def _run_async(
+    action: Action,
+    kwargs: dict[str, Any],
+    token: str,
+    *,
+    use_gateway: bool | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Run `action` against a freshly connected bot and return (result, error)."""
-    return asyncio.run(_run_async(action, kwargs, token))
+    if _should_use_gateway(use_gateway):
+        return await _run_gateway_async(action, kwargs, token)
+    return await _run_rest_async(action, kwargs, token)
+
+
+def run_bot(
+    action: Action,
+    kwargs: dict[str, Any],
+    token: str,
+    *,
+    use_gateway: bool | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
+    """Run `action` against Discord (REST-first by default) and return (result, error)."""
+    return asyncio.run(_run_async(action, kwargs, token, use_gateway=use_gateway))
 
 
 def run_action(
-    action: Action, kwargs: dict[str, Any], human: bool, token: str | None = None
+    action: Action,
+    kwargs: dict[str, Any],
+    human: bool,
+    token: str | None = None,
+    *,
+    use_gateway: bool | None = None,
 ) -> None:
-    """Load config, run the action against the bot, print the payload, and exit with its status."""
+    """Load config, run the action against Discord, print the payload, and exit with its status."""
     try:
         bot_token = load_config(token).bot_token
     except DiscordCliError as exc:
@@ -96,7 +175,10 @@ def run_action(
         print_output(payload, human)
         raise SystemExit(1) from None
 
-    result, error = run_bot(action, kwargs, bot_token)
+    if use_gateway is None:
+        result, error = run_bot(action, kwargs, bot_token)
+    else:
+        result, error = run_bot(action, kwargs, bot_token, use_gateway=use_gateway)
     payload = make_payload(result, error)
     print_output(payload, human)
     raise SystemExit(0 if payload["ok"] else 1)
